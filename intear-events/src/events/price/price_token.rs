@@ -76,15 +76,21 @@ impl DatabaseEventAdapter for DbPriceTokenAdapter {
         event: &<Self::Event as Event>::EventData,
         pool: &Pool<Postgres>,
     ) -> Result<PgQueryResult, sqlx::Error> {
-        sqlx::query!(r#"
+        sqlx::query!(
+            r#"
             INSERT INTO price_token (timestamp, token, price_usd, price_near)
             VALUES ($1, $2, $3, $4)
             "#,
-            chrono::DateTime::from_timestamp((event.timestamp_nanosec / 1_000_000_000) as i64, (event.timestamp_nanosec % 1_000_000_000) as u32),
+            chrono::DateTime::from_timestamp(
+                (event.timestamp_nanosec / 1_000_000_000) as i64,
+                (event.timestamp_nanosec % 1_000_000_000) as u32
+            ),
             event.token.to_string(),
             event.price_usd,
             event.price_near,
-        ).execute(pool).await
+        )
+        .execute(pool)
+        .await
     }
 }
 

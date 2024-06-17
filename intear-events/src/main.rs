@@ -1,4 +1,4 @@
-mod events;
+use intear_events::events;
 
 use events::{
     nft::{nft_burn::NftBurnEvent, nft_mint::NftMintEvent, nft_transfer::NftTransferEvent},
