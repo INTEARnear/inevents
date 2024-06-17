@@ -464,7 +464,6 @@ fn to_openapi_schema(schema: &schemars::schema::Schema) -> Option<RefOr<utoipa::
                 };
             }
 
-            
             match (&schema.metadata, s) {
                 (Some(metadata), RefOr::T(mut schema)) => {
                     for_any!(&mut schema;
