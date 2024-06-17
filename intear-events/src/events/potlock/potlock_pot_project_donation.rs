@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+#[cfg(feature = "impl")]
 use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
@@ -6,10 +7,14 @@ use inindexer::near_indexer_primitives::types::{AccountId, Balance, BlockHeight}
 use inindexer::near_utils::dec_format;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "impl")]
 use sqlx::postgres::PgQueryResult;
+#[cfg(feature = "impl")]
 use sqlx::types::BigDecimal;
+#[cfg(feature = "impl")]
 use sqlx::{Pool, Postgres};
 
+#[cfg(feature = "impl")]
 use inevents::events::event::{
     DatabaseEventAdapter, DatabaseEventFilter, Event, PaginationParameters, RealtimeEventFilter,
 };
@@ -21,6 +26,7 @@ type DonationId = u64;
 type ProjectId = AccountId;
 type PotId = AccountId;
 
+#[cfg(feature = "impl")]
 impl Event for PotlockPotProjectDonationEvent {
     const ID: &'static str = "potlock_pot_project_donation";
     const CATEGORY: &'static str = "Potlock";
@@ -76,17 +82,18 @@ pub struct PotlockPotProjectDonationEventData {
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct DbPotlockPotProjectDonationFilter {
     #[schemars(with = "Option<String>")]
-    pot_id: Option<PotId>,
+    pub pot_id: Option<PotId>,
     #[schemars(with = "String")]
-    project_id: Option<ProjectId>,
+    pub project_id: Option<ProjectId>,
     #[schemars(with = "String")]
-    donor_id: Option<AccountId>,
+    pub donor_id: Option<AccountId>,
     #[schemars(with = "String")]
-    referrer_id: Option<AccountId>,
+    pub referrer_id: Option<AccountId>,
 }
 
 pub struct DbPotlockPotProjectDonationAdapter;
 
+#[cfg(feature = "impl")]
 impl DatabaseEventAdapter for DbPotlockPotProjectDonationAdapter {
     type Event = PotlockPotProjectDonationEvent;
     type Filter = DbPotlockPotProjectDonationFilter;
@@ -121,6 +128,7 @@ impl DatabaseEventAdapter for DbPotlockPotProjectDonationAdapter {
     }
 }
 
+#[cfg(feature = "impl")]
 impl DatabaseEventFilter for DbPotlockPotProjectDonationFilter {
     type Event = PotlockPotProjectDonationEvent;
 
@@ -187,6 +195,7 @@ pub struct RtPotlockPotProjectDonationFilter {
     pub min_amounts: Option<HashMap<AccountId, Balance>>,
 }
 
+#[cfg(feature = "impl")]
 impl RealtimeEventFilter for RtPotlockPotProjectDonationFilter {
     type Event = PotlockPotProjectDonationEvent;
 

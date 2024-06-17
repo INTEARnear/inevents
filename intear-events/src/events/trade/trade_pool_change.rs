@@ -2,9 +2,12 @@ use inindexer::near_indexer_primitives::types::{AccountId, Balance, BlockHeight}
 use inindexer::near_utils::{dec_format, dec_format_vec};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "impl")]
 use sqlx::postgres::PgQueryResult;
+#[cfg(feature = "impl")]
 use sqlx::{Pool, Postgres};
 
+#[cfg(feature = "impl")]
 use inevents::events::event::{
     DatabaseEventAdapter, DatabaseEventFilter, Event, PaginationParameters, RealtimeEventFilter,
 };
@@ -14,6 +17,7 @@ type PoolId = String;
 
 pub struct TradePoolChangeEvent;
 
+#[cfg(feature = "impl")]
 impl Event for TradePoolChangeEvent {
     const ID: &'static str = "trade_pool_change";
     const DESCRIPTION: Option<&'static str> = Some("Fired when a DEX pool changes. For example, when someone exchanges tokens, adds or removes liquidity, or when fee is changed. The behavior is different for each pool, but it's pretty much guaranteed that 2 consecutive events will have different data.");
@@ -54,6 +58,7 @@ pub struct DbTradePoolChangeFilter {
 
 pub struct DbTradePoolChangeAdapter;
 
+#[cfg(feature = "impl")]
 impl DatabaseEventAdapter for DbTradePoolChangeAdapter {
     type Event = TradePoolChangeEvent;
     type Filter = DbTradePoolChangeFilter;
@@ -81,6 +86,7 @@ impl DatabaseEventAdapter for DbTradePoolChangeAdapter {
     }
 }
 
+#[cfg(feature = "impl")]
 impl DatabaseEventFilter for DbTradePoolChangeFilter {
     type Event = TradePoolChangeEvent;
 
@@ -126,6 +132,7 @@ pub struct RtTradePoolChangeilter {
     pub pool_id: Option<PoolId>,
 }
 
+#[cfg(feature = "impl")]
 impl RealtimeEventFilter for RtTradePoolChangeilter {
     type Event = TradePoolChangeEvent;
 

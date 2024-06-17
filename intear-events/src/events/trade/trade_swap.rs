@@ -4,9 +4,12 @@ use inindexer::near_indexer_primitives::types::{AccountId, BlockHeight};
 use inindexer::near_utils::dec_format;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "impl")]
 use sqlx::postgres::PgQueryResult;
+#[cfg(feature = "impl")]
 use sqlx::{Pool, Postgres};
 
+#[cfg(feature = "impl")]
 use inevents::events::event::{
     DatabaseEventAdapter, DatabaseEventFilter, Event, PaginationParameters, RealtimeEventFilter,
 };
@@ -14,6 +17,7 @@ use inevents::events::types::{ReceiptId, TransactionId};
 
 pub struct TradeSwapEvent;
 
+#[cfg(feature = "impl")]
 impl Event for TradeSwapEvent {
     const ID: &'static str = "trade_swap";
     const DESCRIPTION: Option<&'static str> = Some("Fired when someone exchanges tokens. 1 trade = 1 event, even if it goes through multiple pools. This event is a net result of all sub-trades, and only includes the net balance changes of different tokens. If a trade involves a token but net change is 0 (for example, USDT -> USDC -> NEAR, all received USDC is exchanged for NEAR, so it's not included in the event). That means trades made by arbitrage bots will mostly have positive NEAR balance and no other tokens.");
@@ -113,13 +117,14 @@ mod stringified_map {
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct DbTradeSwapFilter {
     #[schemars(with = "Option<String>")]
-    trader_account_id: Option<AccountId>,
+    pub trader_account_id: Option<AccountId>,
     /// Comma-separated list of token account IDs
-    involved_token_account_ids: Option<String>,
+    pub involved_token_account_ids: Option<String>,
 }
 
 pub struct DbTradeSwapAdapter;
 
+#[cfg(feature = "impl")]
 impl DatabaseEventAdapter for DbTradeSwapAdapter {
     type Event = TradeSwapEvent;
     type Filter = DbTradeSwapFilter;
@@ -143,6 +148,7 @@ impl DatabaseEventAdapter for DbTradeSwapAdapter {
     }
 }
 
+#[cfg(feature = "impl")]
 impl DatabaseEventFilter for DbTradeSwapFilter {
     type Event = TradeSwapEvent;
 
@@ -205,6 +211,7 @@ pub struct RtTradeSwapilter {
     pub involved_token_account_ids: Option<Vec<AccountId>>,
 }
 
+#[cfg(feature = "impl")]
 impl RealtimeEventFilter for RtTradeSwapilter {
     type Event = TradeSwapEvent;
 

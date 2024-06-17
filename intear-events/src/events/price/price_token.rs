@@ -2,16 +2,20 @@ use inindexer::near_indexer_primitives::types::AccountId;
 use inindexer::near_utils::dec_format;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "impl")]
 use sqlx::postgres::PgQueryResult;
 use sqlx::types::BigDecimal;
+#[cfg(feature = "impl")]
 use sqlx::{Pool, Postgres};
 
+#[cfg(feature = "impl")]
 use inevents::events::event::{
     DatabaseEventAdapter, DatabaseEventFilter, Event, PaginationParameters, RealtimeEventFilter,
 };
 
 pub struct PriceTokenEvent;
 
+#[cfg(feature = "impl")]
 impl Event for PriceTokenEvent {
     const ID: &'static str = "price_token";
     const DESCRIPTION: Option<&'static str> = Some("Fired approximately every 1-15 seconds for each token if its price has changed. Contains the price in USD and in NEAR");
@@ -63,11 +67,12 @@ mod stringified {
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct DbPriceTokenFilter {
     #[schemars(with = "Option<String>")]
-    token: Option<AccountId>,
+    pub token: Option<AccountId>,
 }
 
 pub struct DbPriceTokenAdapter;
 
+#[cfg(feature = "impl")]
 impl DatabaseEventAdapter for DbPriceTokenAdapter {
     type Event = PriceTokenEvent;
     type Filter = DbPriceTokenFilter;
@@ -94,6 +99,7 @@ impl DatabaseEventAdapter for DbPriceTokenAdapter {
     }
 }
 
+#[cfg(feature = "impl")]
 impl DatabaseEventFilter for DbPriceTokenFilter {
     type Event = PriceTokenEvent;
 
@@ -128,9 +134,10 @@ impl DatabaseEventFilter for DbPriceTokenFilter {
 
 #[derive(Debug, Deserialize)]
 pub struct RtPriceTokenFilter {
-    token: Option<AccountId>,
+    pub token: Option<AccountId>,
 }
 
+#[cfg(feature = "impl")]
 impl RealtimeEventFilter for RtPriceTokenFilter {
     type Event = PriceTokenEvent;
 

@@ -2,9 +2,12 @@ use inindexer::near_indexer_primitives::types::{AccountId, BlockHeight};
 use inindexer::near_utils::dec_format;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "impl")]
 use sqlx::postgres::PgQueryResult;
+#[cfg(feature = "impl")]
 use sqlx::{Pool, Postgres};
 
+#[cfg(feature = "impl")]
 use inevents::events::event::{
     DatabaseEventAdapter, DatabaseEventFilter, Event, PaginationParameters, RealtimeEventFilter,
 };
@@ -12,6 +15,7 @@ use inevents::events::types::{ReceiptId, TransactionId};
 
 pub struct NftBurnEvent;
 
+#[cfg(feature = "impl")]
 impl Event for NftBurnEvent {
     const ID: &'static str = "nft_burn";
     const DESCRIPTION: Option<&'static str> = Some("Fired when NFTs are burned");
@@ -44,13 +48,14 @@ pub struct NftBurnEventData {
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct DbNftBurnFilter {
     #[schemars(with = "Option<String>")]
-    contract_id: Option<AccountId>,
+    pub contract_id: Option<AccountId>,
     #[schemars(with = "Option<String>")]
-    owner_id: Option<AccountId>,
+    pub owner_id: Option<AccountId>,
 }
 
 pub struct DbNftBurnAdapter;
 
+#[cfg(feature = "impl")]
 impl DatabaseEventAdapter for DbNftBurnAdapter {
     type Event = NftBurnEvent;
     type Filter = DbNftBurnFilter;
@@ -76,6 +81,7 @@ impl DatabaseEventAdapter for DbNftBurnAdapter {
     }
 }
 
+#[cfg(feature = "impl")]
 impl DatabaseEventFilter for DbNftBurnFilter {
     type Event = NftBurnEvent;
 
@@ -120,10 +126,11 @@ impl DatabaseEventFilter for DbNftBurnFilter {
 
 #[derive(Debug, Deserialize)]
 pub struct RtNftBurnFilter {
-    contract_id: Option<AccountId>,
-    owner_id: Option<AccountId>,
+    pub contract_id: Option<AccountId>,
+    pub owner_id: Option<AccountId>,
 }
 
+#[cfg(feature = "impl")]
 impl RealtimeEventFilter for RtNftBurnFilter {
     type Event = NftBurnEvent;
 

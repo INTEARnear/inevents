@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+#[cfg(feature = "impl")]
 use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
@@ -6,10 +7,14 @@ use inindexer::near_indexer_primitives::types::{AccountId, Balance, BlockHeight}
 use inindexer::near_utils::dec_format;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "impl")]
 use sqlx::postgres::PgQueryResult;
+#[cfg(feature = "impl")]
 use sqlx::types::BigDecimal;
+#[cfg(feature = "impl")]
 use sqlx::{Pool, Postgres};
 
+#[cfg(feature = "impl")]
 use inevents::events::event::{
     DatabaseEventAdapter, DatabaseEventFilter, Event, PaginationParameters, RealtimeEventFilter,
 };
@@ -20,6 +25,7 @@ pub struct PotlockPotDonationEvent;
 type DonationId = u64;
 type PotId = AccountId;
 
+#[cfg(feature = "impl")]
 impl Event for PotlockPotDonationEvent {
     const ID: &'static str = "potlock_pot_donation";
     const CATEGORY: &'static str = "Potlock";
@@ -73,15 +79,16 @@ pub struct PotlockPotDonationEventData {
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct DbPotlockPotDonationFilter {
     #[schemars(with = "Option<String>")]
-    pot_id: Option<PotId>,
+    pub pot_id: Option<PotId>,
     #[schemars(with = "Option<String>")]
-    donor_id: Option<AccountId>,
+    pub donor_id: Option<AccountId>,
     #[schemars(with = "Option<String>")]
-    referrer_id: Option<AccountId>,
+    pub referrer_id: Option<AccountId>,
 }
 
 pub struct DbPotlockPotDonationAdapter;
 
+#[cfg(feature = "impl")]
 impl DatabaseEventAdapter for DbPotlockPotDonationAdapter {
     type Event = PotlockPotDonationEvent;
     type Filter = DbPotlockPotDonationFilter;
@@ -115,6 +122,7 @@ impl DatabaseEventAdapter for DbPotlockPotDonationAdapter {
     }
 }
 
+#[cfg(feature = "impl")]
 impl DatabaseEventFilter for DbPotlockPotDonationFilter {
     type Event = PotlockPotDonationEvent;
 
@@ -176,6 +184,7 @@ pub struct RtPotlockPotDonationFilter {
     pub min_amounts: Option<HashMap<AccountId, Balance>>,
 }
 
+#[cfg(feature = "impl")]
 impl RealtimeEventFilter for RtPotlockPotDonationFilter {
     type Event = PotlockPotDonationEvent;
 

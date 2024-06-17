@@ -1,13 +1,18 @@
+#[cfg(feature = "impl")]
 use std::str::FromStr;
 
 use inindexer::near_indexer_primitives::types::{AccountId, Balance, BlockHeight};
 use inindexer::near_utils::dec_format;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "impl")]
 use sqlx::postgres::PgQueryResult;
+#[cfg(feature = "impl")]
 use sqlx::types::BigDecimal;
+#[cfg(feature = "impl")]
 use sqlx::{Pool, Postgres};
 
+#[cfg(feature = "impl")]
 use inevents::events::event::{
     DatabaseEventAdapter, DatabaseEventFilter, Event, PaginationParameters, RealtimeEventFilter,
 };
@@ -17,6 +22,7 @@ type PoolId = String;
 
 pub struct TradePoolEvent;
 
+#[cfg(feature = "impl")]
 impl Event for TradePoolEvent {
     const ID: &'static str = "trade_pool";
     const DESCRIPTION: Option<&'static str> = Some("Fired for each pool a trade goes through. For example, if someone exchanges USDT -> USDC -> NEAR, this event will be fired twice, for USDT -> USDC and USDC -> NEAR");
@@ -62,6 +68,7 @@ pub struct DbTradePoolFilter {
 
 pub struct DbTradePoolAdapter;
 
+#[cfg(feature = "impl")]
 impl DatabaseEventAdapter for DbTradePoolAdapter {
     type Event = TradePoolEvent;
     type Filter = DbTradePoolFilter;
@@ -89,6 +96,7 @@ impl DatabaseEventAdapter for DbTradePoolAdapter {
     }
 }
 
+#[cfg(feature = "impl")]
 impl DatabaseEventFilter for DbTradePoolFilter {
     type Event = TradePoolEvent;
 
@@ -143,6 +151,7 @@ pub struct RtTradePoolilter {
     pub trader_account_id: Option<AccountId>,
 }
 
+#[cfg(feature = "impl")]
 impl RealtimeEventFilter for RtTradePoolilter {
     type Event = TradePoolEvent;
 

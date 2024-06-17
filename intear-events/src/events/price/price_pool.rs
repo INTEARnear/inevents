@@ -2,10 +2,13 @@ use inindexer::near_indexer_primitives::types::AccountId;
 use inindexer::near_utils::dec_format;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "impl")]
 use sqlx::postgres::PgQueryResult;
 use sqlx::types::BigDecimal;
+#[cfg(feature = "impl")]
 use sqlx::{Pool, Postgres};
 
+#[cfg(feature = "impl")]
 use inevents::events::event::{
     DatabaseEventAdapter, DatabaseEventFilter, Event, PaginationParameters, RealtimeEventFilter,
 };
@@ -14,6 +17,7 @@ type PoolId = String;
 
 pub struct PricePoolEvent;
 
+#[cfg(feature = "impl")]
 impl Event for PricePoolEvent {
     const ID: &'static str = "price_pool";
     const DESCRIPTION: Option<&'static str> = Some("Fired approximately every 1-5 seconds for each pool. Contains the current price of tokens in the pool. Pools with != 2 tokens are not supported.");
@@ -67,13 +71,14 @@ mod stringified {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct DbPricePoolFilter {
-    pool_id: Option<PoolId>,
+    pub pool_id: Option<PoolId>,
     /// Comma-separated list of token account IDs
-    involved_token_account_ids: Option<String>,
+    pub involved_token_account_ids: Option<String>,
 }
 
 pub struct DbPricePoolAdapter;
 
+#[cfg(feature = "impl")]
 impl DatabaseEventAdapter for DbPricePoolAdapter {
     type Event = PricePoolEvent;
     type Filter = DbPricePoolFilter;
@@ -96,6 +101,7 @@ impl DatabaseEventAdapter for DbPricePoolAdapter {
     }
 }
 
+#[cfg(feature = "impl")]
 impl DatabaseEventFilter for DbPricePoolFilter {
     type Event = PricePoolEvent;
 
@@ -139,10 +145,11 @@ impl DatabaseEventFilter for DbPricePoolFilter {
 
 #[derive(Debug, Deserialize)]
 pub struct RtPricePoolFilter {
-    pool_id: Option<PoolId>,
-    involved_token_account_ids: Option<Vec<AccountId>>,
+    pub pool_id: Option<PoolId>,
+    pub involved_token_account_ids: Option<Vec<AccountId>>,
 }
 
+#[cfg(feature = "impl")]
 impl RealtimeEventFilter for RtPricePoolFilter {
     type Event = PricePoolEvent;
 

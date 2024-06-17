@@ -2,9 +2,12 @@ use inindexer::near_indexer_primitives::types::{AccountId, BlockHeight};
 use inindexer::near_utils::dec_format;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "impl")]
 use sqlx::postgres::PgQueryResult;
+#[cfg(feature = "impl")]
 use sqlx::{Pool, Postgres};
 
+#[cfg(feature = "impl")]
 use inevents::events::event::{
     DatabaseEventAdapter, DatabaseEventFilter, Event, PaginationParameters, RealtimeEventFilter,
 };
@@ -12,6 +15,7 @@ use inevents::events::types::{ReceiptId, TransactionId};
 
 pub struct NftMintEvent;
 
+#[cfg(feature = "impl")]
 impl Event for NftMintEvent {
     const ID: &'static str = "nft_mint";
     const DESCRIPTION: Option<&'static str> = Some("Fired when NFTs are minted");
@@ -44,13 +48,14 @@ pub struct NftMintEventData {
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct DbNftMintFilter {
     #[schemars(with = "Option<String>")]
-    contract_id: Option<AccountId>,
+    pub contract_id: Option<AccountId>,
     #[schemars(with = "Option<String>")]
-    owner_id: Option<AccountId>,
+    pub owner_id: Option<AccountId>,
 }
 
 pub struct DbNftMintAdapter;
 
+#[cfg(feature = "impl")]
 impl DatabaseEventAdapter for DbNftMintAdapter {
     type Event = NftMintEvent;
     type Filter = DbNftMintFilter;
@@ -76,6 +81,7 @@ impl DatabaseEventAdapter for DbNftMintAdapter {
     }
 }
 
+#[cfg(feature = "impl")]
 impl DatabaseEventFilter for DbNftMintFilter {
     type Event = NftMintEvent;
 
@@ -120,10 +126,11 @@ impl DatabaseEventFilter for DbNftMintFilter {
 
 #[derive(Debug, Deserialize)]
 pub struct RtNftMintFilter {
-    contract_id: Option<AccountId>,
-    owner_id: Option<AccountId>,
+    pub contract_id: Option<AccountId>,
+    pub owner_id: Option<AccountId>,
 }
 
+#[cfg(feature = "impl")]
 impl RealtimeEventFilter for RtNftMintFilter {
     type Event = NftMintEvent;
 
