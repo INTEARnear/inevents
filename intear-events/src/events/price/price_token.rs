@@ -1,0 +1,140 @@
+use inindexer::near_indexer_primitives::types::AccountId;
+use inindexer::near_utils::dec_format;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use sqlx::postgres::PgQueryResult;
+use sqlx::types::BigDecimal;
+use sqlx::{Pool, Postgres};
+
+use inevents::events::event::{
+    DatabaseEventAdapter, DatabaseEventFilter, Event, PaginationParameters, RealtimeEventFilter,
+};
+
+pub struct PriceTokenEvent;
+
+impl Event for PriceTokenEvent {
+    const ID: &'static str = "price_token";
+    const DESCRIPTION: Option<&'static str> = Some("Fired approximately every 1-15 seconds for each token if its price has changed. Contains the price in USD and in NEAR");
+    const CATEGORY: &'static str = "Price";
+
+    type EventData = PriceTokenEventData;
+    type RealtimeEventFilter = RtPriceTokenFilter;
+    type DatabaseAdapter = DbPriceTokenAdapter;
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct PriceTokenEventData {
+    #[schemars(with = "String")]
+    pub token: AccountId,
+    #[serde(with = "stringified")]
+    #[schemars(with = "String")]
+    pub price_usd: BigDecimal,
+    #[serde(with = "stringified")]
+    #[schemars(with = "String")]
+    pub price_near: BigDecimal,
+
+    #[serde(with = "dec_format")]
+    #[schemars(with = "String")]
+    pub timestamp_nanosec: u128,
+}
+
+mod stringified {
+    use serde::Deserialize;
+
+    pub fn serialize<S, T>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+        T: ToString,
+    {
+        serializer.serialize_str(&value.to_string())
+    }
+
+    pub fn deserialize<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+        T: std::str::FromStr,
+        T::Err: std::fmt::Display,
+    {
+        let s = String::deserialize(deserializer)?;
+        T::from_str(&s).map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct DbPriceTokenFilter {
+    #[schemars(with = "Option<String>")]
+    token: Option<AccountId>,
+}
+
+pub struct DbPriceTokenAdapter;
+
+impl DatabaseEventAdapter for DbPriceTokenAdapter {
+    type Event = PriceTokenEvent;
+    type Filter = DbPriceTokenFilter;
+
+    async fn insert(
+        event: &<Self::Event as Event>::EventData,
+        pool: &Pool<Postgres>,
+    ) -> Result<PgQueryResult, sqlx::Error> {
+        sqlx::query!(r#"
+            INSERT INTO price_token (timestamp, token, price_usd, price_near)
+            VALUES ($1, $2, $3, $4)
+            "#,
+            chrono::DateTime::from_timestamp((event.timestamp_nanosec / 1_000_000_000) as i64, (event.timestamp_nanosec % 1_000_000_000) as u32),
+            event.token.to_string(),
+            event.price_usd,
+            event.price_near,
+        ).execute(pool).await
+    }
+}
+
+impl DatabaseEventFilter for DbPriceTokenFilter {
+    type Event = PriceTokenEvent;
+
+    async fn query_paginated(
+        &self,
+        pagination: &PaginationParameters,
+        pool: &Pool<Postgres>,
+    ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
+        sqlx::query!(
+            r#"
+            SELECT timestamp, token, price_usd, price_near
+            FROM price_token
+            WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
+                AND ($3::TEXT IS NULL OR token = $3)
+            ORDER BY timestamp ASC
+            LIMIT $2
+            "#,
+            pagination.start_block_timestamp_nanosec as i64,
+            pagination.blocks as i64,
+            self.token.as_ref().map(|s| s.to_string()),
+        )
+        .map(|record| PriceTokenEventData {
+            token: record.token.parse().unwrap(),
+            price_usd: record.price_usd,
+            price_near: record.price_near,
+            timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
+        })
+        .fetch_all(pool)
+        .await
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RtPriceTokenFilter {
+    token: Option<AccountId>,
+}
+
+impl RealtimeEventFilter for RtPriceTokenFilter {
+    type Event = PriceTokenEvent;
+
+    fn matches(&self, event: &<Self::Event as Event>::EventData) -> bool {
+        if let Some(token) = &self.token {
+            if token != &event.token {
+                return false;
+            }
+        }
+
+        true
+    }
+}

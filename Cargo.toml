@@ -1,0 +1,27 @@
+[package]
+name = "inevents"
+version = "1.0.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+log = "0.4.21"
+actix-web = { version = "4.5.1", features = [ "rustls-0_22" ] }
+actix-cors = "0.7.0"
+rustls = "0.22.4"
+rustls-pemfile = "2.1.2"
+tokio = "1.37.0"
+serde = "1.0.203"
+sqlx = { version = "0.7.4", features = [ "tls-rustls", "postgres" ] }
+near-indexer-primitives = "0.22.0"
+async-trait = "0.1.80"
+anyhow = "1.0.86"
+serde_json = "1.0.117"
+dashmap = "5.5.3"
+redis = { version = "0.25.3", features = [ "tokio-rustls-comp", "connection-manager" ] }
+actix-web-actors = "4.3.0"
+actix = "0.13.3"
+inevents-redis = { path = "./redis" }
+utoipa = "4.2.3"
+utoipa-swagger-ui = { version = "7.1.0", features = [ "actix-web" ] }
+schemars = "0.8.21"
