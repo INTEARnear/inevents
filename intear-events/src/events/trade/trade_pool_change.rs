@@ -220,11 +220,11 @@ pub struct RefStableSwapPool {
     /// Initial amplification time.
     #[serde(with = "dec_format")]
     #[schemars(with = "String")]
-    pub init_amp_time: u128,
+    pub init_amp_time: u64,
     /// Stop ramp up amplification time.
     #[serde(with = "dec_format")]
     #[schemars(with = "String")]
-    pub stop_amp_time: u128,
+    pub stop_amp_time: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema)]
@@ -259,9 +259,9 @@ pub struct RefRatedSwapPool {
     /// Initial amplification time.
     #[serde(with = "dec_format")]
     #[schemars(with = "String")]
-    pub init_amp_time: u128,
+    pub init_amp_time: u64,
     /// Stop ramp up amplification time.
     #[serde(with = "dec_format")]
     #[schemars(with = "String")]
-    pub stop_amp_time: u128,
+    pub stop_amp_time: u64,
 }
