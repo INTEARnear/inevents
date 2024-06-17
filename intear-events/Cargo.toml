@@ -10,12 +10,18 @@ dotenvy = "0.15.7"
 log = "0.4.21"
 simple_logger = "5.0.0"
 inevents-redis = { path = "../redis" }
-tokio = { version = "1.37.0", features = [ "macros", "rt-multi-thread" ] }
 serde = "1.0.203"
-chrono = { version = "0.4.38", features = [ "serde" ] }
+chrono = { version = "0.4.38", features = ["serde"] }
 futures = "0.3.30"
 actix = "0.13.5"
 inindexer = "0.1.0"
 schemars = "0.8.21"
-sqlx = { version = "0.7.4", features = [ "runtime-tokio", "tls-rustls", "postgres", "macros", "chrono", "bigdecimal" ] }
 serde_json = "1.0.117"
+sqlx = { version = "0.7.4", features = [
+    "runtime-tokio",
+    "tls-rustls",
+    "postgres",
+    "macros",
+    "chrono",
+    "bigdecimal",
+] }
