@@ -1,4 +1,4 @@
-use inindexer::near_indexer_primitives::types::AccountId;
+use inindexer::near_indexer_primitives::types::{AccountId, BlockHeight};
 use inindexer::near_utils::dec_format;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -28,6 +28,7 @@ impl Event for PriceTokenEvent {
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PriceTokenEventData {
+    block_height: BlockHeight,
     #[schemars(with = "String")]
     pub token: AccountId,
     #[serde(with = "stringified")]
@@ -83,13 +84,14 @@ impl DatabaseEventAdapter for DbPriceTokenAdapter {
     ) -> Result<PgQueryResult, sqlx::Error> {
         sqlx::query!(
             r#"
-            INSERT INTO price_token (timestamp, token, price_usd, price_near)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO price_token (timestamp, block_height, token, price_usd, price_near)
+            VALUES ($1, $2, $3, $4, $5)
             "#,
             chrono::DateTime::from_timestamp(
                 (event.timestamp_nanosec / 1_000_000_000) as i64,
                 (event.timestamp_nanosec % 1_000_000_000) as u32
             ),
+            event.block_height as i64,
             event.token.to_string(),
             event.price_usd,
             event.price_near,
@@ -110,7 +112,7 @@ impl DatabaseEventFilter for DbPriceTokenFilter {
     ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
         sqlx::query!(
             r#"
-            SELECT timestamp, token, price_usd, price_near
+            SELECT timestamp, block_height, token, price_usd, price_near
             FROM price_token
             WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
                 AND ($3::TEXT IS NULL OR token = $3)
@@ -122,6 +124,7 @@ impl DatabaseEventFilter for DbPriceTokenFilter {
             self.token.as_ref().map(|s| s.to_string()),
         )
         .map(|record| PriceTokenEventData {
+            block_height: record.block_height as u64,
             token: record.token.parse().unwrap(),
             price_usd: record.price_usd,
             price_near: record.price_near,

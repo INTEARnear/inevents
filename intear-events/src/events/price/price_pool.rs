@@ -1,4 +1,4 @@
-use inindexer::near_indexer_primitives::types::AccountId;
+use inindexer::near_indexer_primitives::types::{AccountId, BlockHeight};
 use inindexer::near_utils::dec_format;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -30,6 +30,7 @@ impl Event for PricePoolEvent {
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PricePoolEventData {
+    pub block_height: BlockHeight,
     pub pool_id: PoolId,
     #[schemars(with = "String")]
     pub token0: AccountId,
@@ -88,10 +89,11 @@ impl DatabaseEventAdapter for DbPricePoolAdapter {
         pool: &Pool<Postgres>,
     ) -> Result<PgQueryResult, sqlx::Error> {
         sqlx::query!(r#"
-            INSERT INTO price_pool (timestamp, pool_id, token0, token1, token0_in_1_token1, token1_in_1_token0)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO price_pool (timestamp, block_height, pool_id, token0, token1, token0_in_1_token1, token1_in_1_token0)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             "#,
             chrono::DateTime::from_timestamp((event.timestamp_nanosec / 1_000_000_000) as i64, (event.timestamp_nanosec % 1_000_000_000) as u32),
+            event.block_height as i64,
             event.pool_id.as_str(),
             event.token0.as_str(),
             event.token1.as_str(),
@@ -117,7 +119,7 @@ impl DatabaseEventFilter for DbPricePoolFilter {
             .unwrap_or_default();
         sqlx::query!(
             r#"
-            SELECT timestamp, pool_id, token0, token1, token0_in_1_token1, token1_in_1_token0
+            SELECT timestamp, block_height, pool_id, token0, token1, token0_in_1_token1, token1_in_1_token0
             FROM price_pool
             WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
                 AND ($3::TEXT IS NULL OR pool_id = $3)
@@ -131,6 +133,7 @@ impl DatabaseEventFilter for DbPricePoolFilter {
             involved_token_account_ids.as_slice(),
         )
         .map(|record| PricePoolEventData {
+            block_height: record.block_height as u64,
             pool_id: record.pool_id,
             token0: record.token0.parse().unwrap(),
             token1: record.token1.parse().unwrap(),

@@ -111,7 +111,6 @@ impl DatabaseEventFilter for DbNftTransferFilter {
             .as_ref()
             .map(|s| s.split(',').map(|s| s.to_string()).collect::<Vec<_>>())
             .unwrap_or_default();
-        println!("{:?} {:?}", involved_account_ids, self.involved_account_ids);
         sqlx::query!(r#"
             WITH blocks AS (
                 SELECT DISTINCT timestamp as t
