@@ -112,8 +112,17 @@ impl DatabaseEventFilter for DbPriceTokenFilter {
     ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
         sqlx::query!(
             r#"
+            WITH blocks AS (
+                SELECT DISTINCT timestamp as t
+                FROM price_token
+                WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
+                    AND ($3::TEXT IS NULL OR token = $3)
+                ORDER BY t
+                LIMIT $2
+            )
             SELECT timestamp, block_height, token, price_usd, price_near
             FROM price_token
+            INNER JOIN blocks ON timestamp = blocks.t
             WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
                 AND ($3::TEXT IS NULL OR token = $3)
             ORDER BY timestamp ASC

@@ -119,13 +119,22 @@ impl DatabaseEventFilter for DbPricePoolFilter {
             .unwrap_or_default();
         sqlx::query!(
             r#"
+            WITH blocks AS (
+                SELECT DISTINCT timestamp as t
+                FROM price_pool
+                WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
+                    AND ($3::TEXT IS NULL OR pool_id = $3)
+                    AND ($4::TEXT[] IS NULL OR ARRAY[token0, token1] @> $4)
+                ORDER BY t
+                LIMIT $2
+            )
             SELECT timestamp, block_height, pool_id, token0, token1, token0_in_1_token1, token1_in_1_token0
             FROM price_pool
+            INNER JOIN blocks ON timestamp = blocks.t
             WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
                 AND ($3::TEXT IS NULL OR pool_id = $3)
                 AND ($4::TEXT[] IS NULL OR ARRAY[token0, token1] @> $4)
             ORDER BY timestamp ASC
-            LIMIT $2
             "#,
             pagination.start_block_timestamp_nanosec as i64,
             pagination.blocks as i64,
