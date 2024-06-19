@@ -28,11 +28,11 @@ impl<T: Serialize + for<'de> Deserialize<'de>> RedisEventStream<T> {
     /// Redis by key "{reader_id}-{stream_name}".
     pub async fn start_reading_events<
         R: Future<Output = Result<(), anyhow::Error>>,
-        F: Fn(T) -> R,
+        F: FnMut(T) -> R,
     >(
         &mut self,
         reader_id: impl Into<String>,
-        f: F,
+        mut f: F,
     ) -> Result<(), anyhow::Error> {
         let mut con = self.connection.clone();
         let reader_id = reader_id.into();
