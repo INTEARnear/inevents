@@ -16,7 +16,7 @@ pub struct RedisEventStream<T: Serialize + for<'de> Deserialize<'de>> {
 }
 
 impl<T: Serialize + for<'de> Deserialize<'de>> RedisEventStream<T> {
-    pub async fn new(connection: ConnectionManager, stream_name: impl Into<String>) -> Self {
+    pub fn new(connection: ConnectionManager, stream_name: impl Into<String>) -> Self {
         Self {
             connection,
             stream_name: stream_name.into(),

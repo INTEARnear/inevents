@@ -270,7 +270,7 @@ fn create_route(event: RawEvent) -> impl HttpServiceFactory {
 fn launch_event_stream(redis_connection: ConnectionManager, event: RawEvent, server: Addr<Server>) {
     let event_identifier = event.event_identifier;
     tokio::spawn(async move {
-        let mut stream = RedisEventStream::new(redis_connection, event_identifier).await;
+        let mut stream = RedisEventStream::new(redis_connection, event_identifier);
         stream
             .start_reading_events("websocket", move |event: serde_json::Value| {
                 let server = server.clone();

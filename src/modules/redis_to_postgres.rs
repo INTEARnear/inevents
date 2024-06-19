@@ -23,8 +23,7 @@ impl EventModule for RedisToPostgres {
             let pg_pool = pg_pool.clone();
             let redis_connection = redis_connection.clone();
             tokio::spawn(async move {
-                let mut stream =
-                    RedisEventStream::new(redis_connection, event.event_identifier).await;
+                let mut stream = RedisEventStream::new(redis_connection, event.event_identifier);
                 stream
                     .start_reading_events("redis_to_postgres", move |value: serde_json::Value| {
                         (event.insert_into_postgres)(pg_pool.clone(), value)
