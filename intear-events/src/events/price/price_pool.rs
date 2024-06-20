@@ -20,7 +20,7 @@ pub struct PricePoolEvent;
 #[cfg(feature = "impl")]
 impl Event for PricePoolEvent {
     const ID: &'static str = "price_pool";
-    const DESCRIPTION: Option<&'static str> = Some("Fired approximately every 1-5 seconds for each pool. Contains the current price of tokens in the pool. Pools with != 2 tokens are not supported.");
+    const DESCRIPTION: Option<&'static str> = Some("Fired for every trade_pool_change event, with token prices calculated, in the same format for all pools (ref, ref stable swap, ref rated swap, ref dcl, others). Pools with != 2 tokens are not supported.");
     const CATEGORY: &'static str = "Price";
 
     type EventData = PricePoolEventData;

@@ -18,7 +18,7 @@ pub struct PriceTokenEvent;
 #[cfg(feature = "impl")]
 impl Event for PriceTokenEvent {
     const ID: &'static str = "price_token";
-    const DESCRIPTION: Option<&'static str> = Some("Fired approximately every 1-15 seconds for each token if its price has changed. Contains the price in USD and in NEAR");
+    const DESCRIPTION: Option<&'static str> = Some("Fired approximately every 1-15 seconds for each token if its price has changed (even if the quote asset has changed its price but no transaction with the token itself), and for every transaction if a token price has been directly changed in the transaction (e.g. swap with a token). Contains the price in USD and in NEAR");
     const CATEGORY: &'static str = "Price";
 
     type EventData = PriceTokenEventData;
@@ -28,7 +28,7 @@ impl Event for PriceTokenEvent {
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PriceTokenEventData {
-    block_height: BlockHeight,
+    pub block_height: BlockHeight,
     #[schemars(with = "String")]
     pub token: AccountId,
     #[serde(with = "stringified")]
