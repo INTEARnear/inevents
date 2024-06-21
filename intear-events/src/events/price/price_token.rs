@@ -34,9 +34,6 @@ pub struct PriceTokenEventData {
     #[serde(with = "stringified")]
     #[schemars(with = "String")]
     pub price_usd: BigDecimal,
-    #[serde(with = "stringified")]
-    #[schemars(with = "String")]
-    pub price_near: BigDecimal,
 
     #[serde(with = "dec_format")]
     #[schemars(with = "String")]
@@ -84,8 +81,8 @@ impl DatabaseEventAdapter for DbPriceTokenAdapter {
     ) -> Result<PgQueryResult, sqlx::Error> {
         sqlx::query!(
             r#"
-            INSERT INTO price_token (timestamp, block_height, token, price_usd, price_near)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO price_token (timestamp, block_height, token, price_usd)
+            VALUES ($1, $2, $3, $4)
             "#,
             chrono::DateTime::from_timestamp(
                 (event.timestamp_nanosec / 1_000_000_000) as i64,
@@ -94,7 +91,6 @@ impl DatabaseEventAdapter for DbPriceTokenAdapter {
             event.block_height as i64,
             event.token.to_string(),
             event.price_usd,
-            event.price_near,
         )
         .execute(pool)
         .await
@@ -120,7 +116,7 @@ impl DatabaseEventFilter for DbPriceTokenFilter {
                 ORDER BY t
                 LIMIT $2
             )
-            SELECT timestamp, block_height, token, price_usd, price_near
+            SELECT timestamp, block_height, token, price_usd
             FROM price_token
             INNER JOIN blocks ON timestamp = blocks.t
             WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
@@ -136,7 +132,6 @@ impl DatabaseEventFilter for DbPriceTokenFilter {
             block_height: record.block_height as u64,
             token: record.token.parse().unwrap(),
             price_usd: record.price_usd,
-            price_near: record.price_near,
             timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
         })
         .fetch_all(pool)
