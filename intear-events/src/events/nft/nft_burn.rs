@@ -15,9 +15,13 @@ use inevents::events::types::{ReceiptId, TransactionId};
 
 pub struct NftBurnEvent;
 
+impl NftBurnEvent {
+    pub const ID: &'static str = "nft_burn";
+}
+
 #[cfg(feature = "impl")]
 impl Event for NftBurnEvent {
-    const ID: &'static str = "nft_burn";
+    const ID: &'static str = Self::ID;
     const DESCRIPTION: Option<&'static str> = Some("Fired when NFTs are burned");
     const CATEGORY: &'static str = "NFT";
 

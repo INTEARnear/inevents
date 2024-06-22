@@ -22,9 +22,13 @@ type PoolId = String;
 
 pub struct TradePoolEvent;
 
+impl TradePoolEvent {
+    pub const ID: &'static str = "trade_pool";
+}
+
 #[cfg(feature = "impl")]
 impl Event for TradePoolEvent {
-    const ID: &'static str = "trade_pool";
+    const ID: &'static str = Self::ID;
     const DESCRIPTION: Option<&'static str> = Some("Fired for each pool a trade goes through. For example, if someone exchanges USDT -> USDC -> NEAR, this event will be fired twice, for USDT -> USDC and USDC -> NEAR");
     const CATEGORY: &'static str = "Trade";
 

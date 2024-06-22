@@ -17,9 +17,13 @@ type PoolId = String;
 
 pub struct TradePoolChangeEvent;
 
+impl TradePoolChangeEvent {
+    pub const ID: &'static str = "trade_pool_change";
+}
+
 #[cfg(feature = "impl")]
 impl Event for TradePoolChangeEvent {
-    const ID: &'static str = "trade_pool_change";
+    const ID: &'static str = Self::ID;
     const DESCRIPTION: Option<&'static str> = Some("Fired when a DEX pool changes. For example, when someone exchanges tokens, adds or removes liquidity, or when fee is changed. The behavior is different for each pool, but it's pretty much guaranteed that 2 consecutive events will have different data.");
     const CATEGORY: &'static str = "Trade";
 

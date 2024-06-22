@@ -20,9 +20,13 @@ use inevents::events::types::{ReceiptId, TransactionId};
 
 pub struct NftTransferEvent;
 
+impl NftTransferEvent {
+    pub const ID: &'static str = "nft_transfer";
+}
+
 #[cfg(feature = "impl")]
 impl Event for NftTransferEvent {
-    const ID: &'static str = "nft_transfer";
+    const ID: &'static str = Self::ID;
     const DESCRIPTION: Option<&'static str> = Some("Fired when NFTs are transferred or sold");
     const CATEGORY: &'static str = "NFT";
 

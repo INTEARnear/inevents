@@ -17,9 +17,13 @@ type PoolId = String;
 
 pub struct PricePoolEvent;
 
+impl PricePoolEvent {
+    pub const ID: &'static str = "price_pool";
+}
+
 #[cfg(feature = "impl")]
 impl Event for PricePoolEvent {
-    const ID: &'static str = "price_pool";
+    const ID: &'static str = Self::ID;
     const DESCRIPTION: Option<&'static str> = Some("Fired for every trade_pool_change event, with token prices calculated, in the same format for all pools (ref, ref stable swap, ref rated swap, ref dcl, others). Pools with != 2 tokens are not supported.");
     const CATEGORY: &'static str = "Price";
 

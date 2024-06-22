@@ -17,9 +17,13 @@ use inevents::events::types::{ReceiptId, TransactionId};
 
 pub struct TradeSwapEvent;
 
+impl TradeSwapEvent {
+    pub const ID: &'static str = "trade_swap";
+}
+
 #[cfg(feature = "impl")]
 impl Event for TradeSwapEvent {
-    const ID: &'static str = "trade_swap";
+    const ID: &'static str = Self::ID;
     const DESCRIPTION: Option<&'static str> = Some("Fired when someone exchanges tokens. 1 trade = 1 event, even if it goes through multiple pools. This event is a net result of all sub-trades, and only includes the net balance changes of different tokens. If a trade involves a token but net change is 0 (for example, USDT -> USDC -> NEAR, all received USDC is exchanged for NEAR, so it's not included in the event). That means trades made by arbitrage bots will mostly have positive NEAR balance and no other tokens.");
     const CATEGORY: &'static str = "Trade";
 

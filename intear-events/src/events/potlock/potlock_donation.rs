@@ -25,9 +25,13 @@ pub struct PotlockDonationEvent;
 type DonationId = u64;
 type ProjectId = AccountId;
 
+impl PotlockDonationEvent {
+    pub const ID: &'static str = "potlock_donation";
+}
+
 #[cfg(feature = "impl")]
 impl Event for PotlockDonationEvent {
-    const ID: &'static str = "potlock_donation";
+    const ID: &'static str = Self::ID;
     const CATEGORY: &'static str = "Potlock";
 
     type EventData = PotlockDonationEventData;
