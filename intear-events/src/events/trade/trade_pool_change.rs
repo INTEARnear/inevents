@@ -1,4 +1,5 @@
 use inindexer::near_indexer_primitives::types::{AccountId, Balance, BlockHeight};
+use inindexer::near_indexer_primitives::CryptoHash;
 use inindexer::near_utils::{dec_format, dec_format_vec};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -11,7 +12,6 @@ use sqlx::{Pool, Postgres};
 use inevents::events::event::{
     DatabaseEventAdapter, DatabaseEventFilter, Event, PaginationParameters, RealtimeEventFilter,
 };
-use inevents::events::types::ReceiptId;
 
 type PoolId = String;
 
@@ -36,7 +36,7 @@ impl Event for TradePoolChangeEvent {
 pub struct TradePoolChangeEventData {
     pub pool_id: PoolId,
     #[schemars(with = "String")]
-    pub receipt_id: ReceiptId,
+    pub receipt_id: CryptoHash,
     #[serde(with = "dec_format")]
     #[schemars(with = "String")]
     pub block_timestamp_nanosec: u128,

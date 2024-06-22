@@ -5,7 +5,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-inevents = { path = "../" }
+inevents = { path = "../", optional = true }
 dotenvy = "0.15.7"
 log = "0.4.21"
 simple_logger = "5.0.0"
@@ -27,5 +27,5 @@ sqlx = { version = "0.7.4", features = [
 ] }
 
 [features]
-impl = []
+impl = ["inevents"]
 default = ["impl"] # If using this as a library, you may want to disable sqlx queries because of compile time checks

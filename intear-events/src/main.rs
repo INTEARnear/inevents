@@ -1,5 +1,7 @@
+#[cfg(feature = "impl")]
 use intear_events::events;
 
+#[cfg(feature = "impl")]
 use events::{
     nft::{nft_burn::NftBurnEvent, nft_mint::NftMintEvent, nft_transfer::NftTransferEvent},
     potlock::{
@@ -12,6 +14,7 @@ use events::{
         trade_swap::TradeSwapEvent,
     },
 };
+#[cfg(feature = "impl")]
 use inevents::{
     create_events,
     modules::{
@@ -19,8 +22,8 @@ use inevents::{
         websocket_server::WebsocketServer, EventModule,
     },
 };
-use log::{error, info};
 
+#[cfg(feature = "impl")]
 #[actix::main]
 async fn main() {
     dotenvy::dotenv().ok();
@@ -32,7 +35,7 @@ async fn main() {
 
     let module_names = std::env::args().skip(1).collect::<Vec<String>>();
     if module_names.is_empty() {
-        error!("No modules specified. Available modules: 'http-server', 'websocket-server', 'redis-to-postgres', 'all'. Usage: `./inevents [module]...`");
+        log::error!("No modules specified. Available modules: 'http-server', 'websocket-server', 'redis-to-postgres', 'all'. Usage: `./inevents [module]...`");
         return;
     }
     let module_names = if module_names.contains(&"all".to_string()) {
@@ -44,7 +47,7 @@ async fn main() {
     } else {
         module_names
     };
-    info!("Running {}", module_names.join(", "));
+    log::info!("Running {}", module_names.join(", "));
 
     create_events!(Events:
         NftMintEvent,
@@ -73,10 +76,20 @@ async fn main() {
                 futures.push(RedisToPostgres.start::<Events>());
             }
             _ => {
-                error!("Unknown module: {module_name}");
+                log::error!("Unknown module: {module_name}");
                 return;
             }
         }
     }
-    futures::future::join_all(futures).await;
+    let results = futures::future::join_all(futures).await;
+    for result in results {
+        if let Err(e) = result {
+            log::error!("Error in module: {e:?}");
+        }
+    }
+}
+
+#[cfg(not(feature = "impl"))]
+fn main() {
+    log::error!("This binary was compiled without the 'impl' feature. Please enable the 'impl' feature to run the binary.");
 }
