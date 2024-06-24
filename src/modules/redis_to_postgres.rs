@@ -19,10 +19,11 @@ impl EventModule for RedisToPostgres {
         .await
         .expect("Failed to connect to Postgres");
 
+        let mut tasks = Vec::new();
         for event in E::events() {
             let pg_pool = pg_pool.clone();
             let redis_connection = redis_connection.clone();
-            tokio::spawn(async move {
+            tasks.push(tokio::spawn(async move {
                 let mut stream = RedisEventStream::new(redis_connection, event.event_identifier);
                 if let Err(err) = stream
                     .start_reading_events("redis_to_postgres", move |value: serde_json::Value| {
@@ -32,8 +33,9 @@ impl EventModule for RedisToPostgres {
                 {
                     log::error!("Error reading events from Redis: {err:?}");
                 }
-            });
+            }));
         }
+        futures::future::join_all(tasks).await;
         Ok(())
     }
 }
