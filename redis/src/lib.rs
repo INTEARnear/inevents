@@ -1,5 +1,6 @@
-use std::future::Future;
+use std::sync::OnceLock;
 use std::time::Duration;
+use std::{future::Future, sync::Arc};
 
 use anyhow::Context;
 use redis::{
@@ -8,18 +9,22 @@ use redis::{
     AsyncCommands,
 };
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc::error::TrySendError;
+use tokio::sync::mpsc::Sender;
 
-pub struct RedisEventStream<T: Serialize + for<'de> Deserialize<'de>> {
+pub struct RedisEventStream<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> {
     pub connection: ConnectionManager,
     pub stream_name: String,
+    queue: Arc<OnceLock<Sender<T>>>,
     _marker: std::marker::PhantomData<T>,
 }
 
-impl<T: Serialize + for<'de> Deserialize<'de>> RedisEventStream<T> {
+impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEventStream<T> {
     pub fn new(connection: ConnectionManager, stream_name: impl Into<String>) -> Self {
         Self {
             connection,
             stream_name: stream_name.into(),
+            queue: Arc::new(OnceLock::new()),
             _marker: std::marker::PhantomData,
         }
     }
@@ -97,14 +102,39 @@ impl<T: Serialize + for<'de> Deserialize<'de>> RedisEventStream<T> {
         value: T,
         max_len: usize,
     ) -> Result<(), anyhow::Error> {
-        self.connection
-            .xadd_maxlen(
-                &self.stream_name,
-                StreamMaxlen::Approx(max_len),
-                format!("{}-*", index.to_string()),
-                &[("event", serde_json::to_string(&value)?)],
-            )
-            .await?;
-        Ok(())
+        let tx = self
+            .queue
+            .get_or_init(|| {
+                let (tx, mut rx) = tokio::sync::mpsc::channel(1000);
+
+                let mut connection = self.connection.clone();
+                let index = index.to_string();
+                let stream_name = self.stream_name.clone();
+
+                tokio::spawn(async move {
+                    while let Some(value) = rx.recv().await {
+                        let _: () = connection
+                            .xadd_maxlen(
+                                &stream_name,
+                                StreamMaxlen::Approx(max_len),
+                                format!("{index}-*"),
+                                &[(
+                                    "event",
+                                    serde_json::to_string(&value)
+                                        .expect("Failed to serialize event"),
+                                )],
+                            )
+                            .await
+                            .expect("Failed to emit event");
+                    }
+                });
+
+                tx
+            });
+        match tx.try_send(value) {
+            Ok(()) => Ok(()),
+            Err(TrySendError::Full(_)) => Err(anyhow::anyhow!("Couldn't send an event because a channel is full (capacity is 1000)")),
+            Err(TrySendError::Closed(_)) => Err(anyhow::anyhow!("Couldn't send an event because a channel is closed")),
+        }
     }
 }

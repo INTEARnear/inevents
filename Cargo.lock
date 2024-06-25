@@ -1816,6 +1816,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "dashmap",
+ "futures",
  "inevents-redis",
  "log",
  "near-indexer-primitives",
