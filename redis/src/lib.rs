@@ -96,7 +96,7 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
     /// Recommended to use block height or a timestamp. The actual index
     /// will be the stream name followed by a hyphen and the index assigned
     /// by Redis.
-    pub async fn emit_event(
+    pub fn emit_event(
         &mut self,
         index: impl ToString,
         value: T,
