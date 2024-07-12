@@ -1,3 +1,4 @@
+pub mod newcontract;
 pub mod nft;
 pub mod potlock;
 pub mod price;
