@@ -130,11 +130,15 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
                             format!("{index}-*"),
                             &[(
                                 "event",
-                                serde_json::to_string(&value).expect("Failed to serialize event"),
+                                serde_json::to_string(&value).expect(&format!(
+                                    "Failed to serialize {stream_name} event"
+                                )),
                             )],
                         )
                         .await
-                        .expect("Failed to emit event");
+                        .expect(&format!(
+                            "Failed to emit {stream_name} event at index {index}"
+                        ));
                     if cancellation_token.is_cancelled() && !rx.is_closed() {
                         rx.close();
                     }
