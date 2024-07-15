@@ -108,7 +108,7 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
     /// will be the stream name followed by a hyphen and the index assigned
     /// by Redis.
     pub fn emit_event(
-        &mut self,
+        &self,
         index: impl ToString,
         value: T,
         max_len: usize,
@@ -130,15 +130,15 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
                             format!("{index}-*"),
                             &[(
                                 "event",
-                                serde_json::to_string(&value).expect(&format!(
-                                    "Failed to serialize {stream_name} event"
-                                )),
+                                serde_json::to_string(&value).unwrap_or_else(|_| {
+                                    panic!("Failed to serialize {stream_name} event")
+                                }),
                             )],
                         )
                         .await
-                        .expect(&format!(
-                            "Failed to emit {stream_name} event at index {index}"
-                        ));
+                        .unwrap_or_else(|_| {
+                            panic!("Failed to emit {stream_name} event at index {index}")
+                        });
                     if cancellation_token.is_cancelled() && !rx.is_closed() {
                         rx.close();
                     }
