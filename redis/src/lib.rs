@@ -1,6 +1,6 @@
+use std::future::Future;
 use std::sync::OnceLock;
 use std::time::Duration;
-use std::{future::Future, sync::Arc};
 
 use anyhow::Context;
 use redis::{
@@ -11,11 +11,14 @@ use redis::{
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::Sender;
+use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 
 pub struct RedisEventStream<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> {
     pub connection: ConnectionManager,
     pub stream_name: String,
-    queue: Arc<OnceLock<Sender<T>>>,
+    queue: OnceLock<(JoinHandle<()>, Sender<T>)>,
+    cancellation_token: CancellationToken,
     _marker: std::marker::PhantomData<T>,
 }
 
@@ -24,7 +27,8 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
         Self {
             connection,
             stream_name: stream_name.into(),
-            queue: Arc::new(OnceLock::new()),
+            queue: OnceLock::new(),
+            cancellation_token: CancellationToken::new(),
             _marker: std::marker::PhantomData,
         }
     }
@@ -38,6 +42,7 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
         &mut self,
         reader_id: impl Into<String>,
         mut f: F,
+        should_stop: impl Fn() -> bool,
     ) -> Result<(), anyhow::Error> {
         let mut con = self.connection.clone();
         let reader_id = reader_id.into();
@@ -46,7 +51,13 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
             .await?;
         let mut last_id = last_id.unwrap_or("0".to_string());
         loop {
+            if should_stop() {
+                break Ok(());
+            }
             let events = self.read_event(&last_id).await?;
+            if events.is_empty() {
+                continue;
+            }
             for (id, event) in events {
                 f(event).await.context("Processing event")?;
                 last_id = id;
@@ -102,39 +113,51 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
         value: T,
         max_len: usize,
     ) -> Result<(), anyhow::Error> {
-        let tx = self
-            .queue
-            .get_or_init(|| {
-                let (tx, mut rx) = tokio::sync::mpsc::channel(1000);
+        let (_, tx) = self.queue.get_or_init(|| {
+            let (tx, mut rx) = tokio::sync::mpsc::channel(1000);
 
-                let mut connection = self.connection.clone();
-                let index = index.to_string();
-                let stream_name = self.stream_name.clone();
+            let mut connection = self.connection.clone();
+            let index = index.to_string();
+            let stream_name = self.stream_name.clone();
 
-                tokio::spawn(async move {
-                    while let Some(value) = rx.recv().await {
-                        let _: () = connection
-                            .xadd_maxlen(
-                                &stream_name,
-                                StreamMaxlen::Approx(max_len),
-                                format!("{index}-*"),
-                                &[(
-                                    "event",
-                                    serde_json::to_string(&value)
-                                        .expect("Failed to serialize event"),
-                                )],
-                            )
-                            .await
-                            .expect("Failed to emit event");
+            let cancellation_token = self.cancellation_token.clone();
+            let join_handle = tokio::spawn(async move {
+                while let Some(value) = rx.recv().await {
+                    let _: () = connection
+                        .xadd_maxlen(
+                            &stream_name,
+                            StreamMaxlen::Approx(max_len),
+                            format!("{index}-*"),
+                            &[(
+                                "event",
+                                serde_json::to_string(&value).expect("Failed to serialize event"),
+                            )],
+                        )
+                        .await
+                        .expect("Failed to emit event");
+                    if cancellation_token.is_cancelled() && !rx.is_closed() {
+                        rx.close();
                     }
-                });
-
-                tx
+                }
             });
+
+            (join_handle, tx)
+        });
         match tx.try_send(value) {
             Ok(()) => Ok(()),
-            Err(TrySendError::Full(_)) => Err(anyhow::anyhow!("Couldn't send an event because a channel is full (capacity is 1000)")),
-            Err(TrySendError::Closed(_)) => Err(anyhow::anyhow!("Couldn't send an event because a channel is closed")),
+            Err(TrySendError::Full(_)) => Err(anyhow::anyhow!(
+                "Couldn't send an event because a channel is full (capacity is 1000)"
+            )),
+            Err(TrySendError::Closed(_)) => Err(anyhow::anyhow!(
+                "Couldn't send an event because a channel is closed"
+            )),
+        }
+    }
+
+    pub async fn stop(self) {
+        self.cancellation_token.cancel();
+        if let Some((join_handle, _)) = self.queue.into_inner() {
+            join_handle.await.expect("Failed to stop the event stream");
         }
     }
 }

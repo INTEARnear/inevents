@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use inevents_redis::RedisEventStream;
 use redis::aio::ConnectionManager;
 use sqlx::PgPool;
+use tokio_util::sync::CancellationToken;
 
 pub struct RedisToPostgres;
 
@@ -20,22 +21,40 @@ impl EventModule for RedisToPostgres {
         .expect("Failed to connect to Postgres");
 
         let mut tasks = Vec::new();
+        let cancellation_token = CancellationToken::new();
         for event in E::events() {
+            let cancellation_token = cancellation_token.clone();
             let pg_pool = pg_pool.clone();
             let redis_connection = redis_connection.clone();
             tasks.push(tokio::spawn(async move {
                 let mut stream = RedisEventStream::new(redis_connection, event.event_identifier);
                 if let Err(err) = stream
-                    .start_reading_events("redis_to_postgres", move |value: serde_json::Value| {
-                        (event.insert_into_postgres)(pg_pool.clone(), value)
-                    })
+                    .start_reading_events(
+                        "redis_to_postgres",
+                        |value: serde_json::Value| {
+                            (event.insert_into_postgres)(pg_pool.clone(), value)
+                        },
+                        || cancellation_token.is_cancelled(),
+                    )
                     .await
                 {
                     log::error!("Error reading events from Redis: {err:?}");
                 }
             }));
         }
-        futures::future::join_all(tasks).await;
+        let task = tokio::spawn(futures::future::join_all(tasks));
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to listen for Ctrl+C");
+        log::info!("Ctrl+C received, stopping redis-to-postgres");
+        cancellation_token.cancel();
+        let results = task.await.expect("Failed to join redis-to-postgres tasks");
+        for result in results {
+            if let Err(err) = result {
+                log::error!("Error in redis-to-postgres task: {err:?}");
+            }
+        }
+        log::info!("Redis-to-postgres stopped");
         Ok(())
     }
 }

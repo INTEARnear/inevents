@@ -19,6 +19,8 @@ use async_trait::async_trait;
 use dashmap::DashSet;
 use inevents_redis::RedisEventStream;
 use redis::aio::ConnectionManager;
+use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 
 // EventWebSocket is the client, Server is the server.
 // Typical flow:
@@ -48,8 +50,15 @@ impl EventModule for WebsocketServer {
         };
         let server_addr = server.start();
 
+        let cancellation_token = CancellationToken::new();
+        let mut join_handles = Vec::new();
         for event in E::events() {
-            launch_event_stream(redis_connection.clone(), event, server_addr.clone());
+            join_handles.push(launch_event_stream(
+                redis_connection.clone(),
+                event,
+                server_addr.clone(),
+                cancellation_token.clone(),
+            ));
         }
 
         let tls_config = if let Ok(files) = std::env::var("SSL") {
@@ -108,6 +117,15 @@ impl EventModule for WebsocketServer {
         };
 
         server.run().await?;
+
+        log::info!("Websocket server stopped. Stopping event readers");
+
+        cancellation_token.cancel();
+        for handle in join_handles {
+            handle.await.expect("Failed to join event stream task");
+        }
+
+        log::info!("Websocket event readers stopped");
 
         Ok(())
     }
@@ -267,23 +285,29 @@ fn create_route(event: RawEvent) -> impl HttpServiceFactory {
     ))
 }
 
-fn launch_event_stream(redis_connection: ConnectionManager, event: RawEvent, server: Addr<Server>) {
+fn launch_event_stream(
+    redis_connection: ConnectionManager,
+    event: RawEvent,
+    server: Addr<Server>,
+    cancellation_token: CancellationToken,
+) -> JoinHandle<()> {
     let event_identifier = event.event_identifier;
     tokio::spawn(async move {
         let mut stream = RedisEventStream::new(redis_connection, event_identifier);
         stream
-            .start_reading_events("websocket", move |event: serde_json::Value| {
-                let server = server.clone();
-                async move {
+            .start_reading_events(
+                "websocket",
+                |event: serde_json::Value| {
                     server.do_send(UntypedEvent(
                         event_identifier,
                         serde_json::to_string(&event).unwrap(),
                         event,
                     ));
-                    Ok(())
-                }
-            })
+                    async { Ok(()) }
+                },
+                || cancellation_token.is_cancelled(),
+            )
             .await
             .unwrap();
-    });
+    })
 }
