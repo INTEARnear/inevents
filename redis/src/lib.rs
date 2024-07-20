@@ -12,13 +12,11 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::Sender;
 use tokio::task::JoinHandle;
-use tokio_util::sync::CancellationToken;
 
 pub struct RedisEventStream<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> {
     pub connection: ConnectionManager,
     pub stream_name: String,
     queue: OnceLock<(JoinHandle<()>, Sender<T>)>,
-    cancellation_token: CancellationToken,
     _marker: std::marker::PhantomData<T>,
 }
 
@@ -28,7 +26,6 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
             connection,
             stream_name: stream_name.into(),
             queue: OnceLock::new(),
-            cancellation_token: CancellationToken::new(),
             _marker: std::marker::PhantomData,
         }
     }
@@ -120,10 +117,9 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
             let index = index.to_string();
             let stream_name = self.stream_name.clone();
 
-            let cancellation_token = self.cancellation_token.clone();
             let join_handle = tokio::spawn(async move {
                 while let Some(value) = rx.recv().await {
-                    let _: () = connection
+                    connection
                         .xadd_maxlen(
                             &stream_name,
                             StreamMaxlen::Approx(max_len),
@@ -139,9 +135,6 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
                         .unwrap_or_else(|_| {
                             panic!("Failed to emit {stream_name} event at index {index}")
                         });
-                    if cancellation_token.is_cancelled() && !rx.is_closed() {
-                        rx.close();
-                    }
                 }
             });
 
@@ -159,8 +152,8 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
     }
 
     pub async fn stop(self) {
-        self.cancellation_token.cancel();
-        if let Some((join_handle, _)) = self.queue.into_inner() {
+        if let Some((join_handle, tx)) = self.queue.into_inner() {
+            drop(tx); // Receiving end of the channel will close when all senders are dropped
             join_handle.await.expect("Failed to stop the event stream");
         }
     }
