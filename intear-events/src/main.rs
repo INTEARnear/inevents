@@ -26,7 +26,9 @@ use inevents::{
 #[cfg(feature = "impl")]
 #[actix::main]
 async fn main() {
-    use intear_events::events::newcontract::nep141::NewContractNep141Event;
+    use intear_events::events::{
+        newcontract::nep141::NewContractNep141Event, socialdb::index::SocialDBIndexEvent,
+    };
 
     dotenvy::dotenv().ok();
     simple_logger::SimpleLogger::new()
@@ -64,6 +66,7 @@ async fn main() {
         PricePoolEvent,
         PriceTokenEvent,
         NewContractNep141Event,
+        SocialDBIndexEvent,
     );
 
     let mut futures = Vec::new();

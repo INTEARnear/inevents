@@ -35,7 +35,7 @@ pub struct SocialDBIndexEventData {
     pub block_height: BlockHeight,
     #[serde(with = "dec_format")]
     #[schemars(with = "String")]
-    pub timestamp_nanosec: u128,
+    pub block_timestamp_nanosec: u128,
     #[schemars(with = "String")]
     pub transaction_id: CryptoHash,
     #[schemars(with = "String")]
@@ -74,8 +74,8 @@ impl DatabaseEventAdapter for DbSocialDBIndexAdapter {
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             "#,
             chrono::DateTime::from_timestamp(
-                (event.timestamp_nanosec / 1_000_000_000) as i64,
-                (event.timestamp_nanosec % 1_000_000_000) as u32
+                (event.block_timestamp_nanosec / 1_000_000_000) as i64,
+                (event.block_timestamp_nanosec % 1_000_000_000) as u32
             ),
             event.transaction_id.to_string(),
             event.receipt_id.to_string(),
@@ -129,7 +129,7 @@ impl DatabaseEventFilter for DbPriceTokenFilter {
         )
         .map(|record| SocialDBIndexEventData {
             block_height: record.block_height as u64,
-            timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
+            block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
             transaction_id: record.transaction_id.parse().unwrap(),
             receipt_id: record.receipt_id.parse().unwrap(),
             account_id: record.account_id.parse().unwrap(),
