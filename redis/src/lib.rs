@@ -111,7 +111,7 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
         max_len: usize,
     ) -> Result<(), anyhow::Error> {
         let (_, tx) = self.queue.get_or_init(|| {
-            let (tx, mut rx) = tokio::sync::mpsc::channel(1000);
+            let (tx, mut rx) = tokio::sync::mpsc::channel(max_len);
 
             let mut connection = self.connection.clone();
             let index = index.to_string();
@@ -143,7 +143,7 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
         match tx.try_send(value) {
             Ok(()) => Ok(()),
             Err(TrySendError::Full(_)) => Err(anyhow::anyhow!(
-                "Couldn't send an event because a channel is full (capacity is 1000)"
+                "Couldn't send an event because a channel is full (capacity is {max_len})"
             )),
             Err(TrySendError::Closed(_)) => Err(anyhow::anyhow!(
                 "Couldn't send an event because a channel is closed"
