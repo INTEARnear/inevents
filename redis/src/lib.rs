@@ -119,21 +119,20 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
             let join_handle = tokio::spawn(async move {
                 while let Some((index, value)) = rx.recv().await {
                     connection
-                        .xadd_maxlen(
+                        .xadd_maxlen::<_, _, _, _, ()>(
                             &stream_name,
                             StreamMaxlen::Approx(max_len),
                             format!("{index}-*"),
                             &[(
                                 "event",
-                                serde_json::to_string(&value).unwrap_or_else(|_| {
-                                    panic!("Failed to serialize {stream_name} event")
-                                }),
+                                serde_json::to_string(&value)
+                                    .expect(&format!("Failed to serialize {stream_name} event")),
                             )],
                         )
                         .await
-                        .unwrap_or_else(|_| {
-                            panic!("Failed to emit {stream_name} event at index {index}")
-                        });
+                        .expect(&format!(
+                            "Failed to emit {stream_name} event at index {index}"
+                        ));
                 }
             });
 
