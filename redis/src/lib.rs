@@ -16,7 +16,7 @@ use tokio::task::JoinHandle;
 pub struct RedisEventStream<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> {
     pub connection: ConnectionManager,
     pub stream_name: String,
-    queue: OnceLock<(JoinHandle<()>, Sender<T>)>,
+    queue: OnceLock<(JoinHandle<()>, Sender<(String, T)>)>,
     _marker: std::marker::PhantomData<T>,
 }
 
@@ -114,11 +114,10 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
             let (tx, mut rx) = tokio::sync::mpsc::channel(max_len);
 
             let mut connection = self.connection.clone();
-            let index = index.to_string();
             let stream_name = self.stream_name.clone();
 
             let join_handle = tokio::spawn(async move {
-                while let Some(value) = rx.recv().await {
+                while let Some((index, value)) = rx.recv().await {
                     connection
                         .xadd_maxlen(
                             &stream_name,
@@ -140,7 +139,7 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
 
             (join_handle, tx)
         });
-        match tx.try_send(value) {
+        match tx.try_send((index.to_string(), value)) {
             Ok(()) => Ok(()),
             Err(TrySendError::Full(_)) => Err(anyhow::anyhow!(
                 "Couldn't send an event because a channel is full (capacity is {max_len})"
