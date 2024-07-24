@@ -73,7 +73,7 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
                 &[&self.stream_name],
                 &[start_id.into()],
                 &StreamReadOptions::default()
-                    .count(100)
+                    .count(10000)
                     .block(Duration::from_millis(250).as_millis() as usize),
             )
             .await?;
