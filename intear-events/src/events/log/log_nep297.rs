@@ -25,6 +25,7 @@ impl Event for LogNep297Event {
     const ID: &'static str = Self::ID;
     const DESCRIPTION: Option<&'static str> = Some("All NEP-297 (https://nomicon.io/Standards/EventsFormat) events produced by smart contracts");
     const CATEGORY: &'static str = "Logs";
+    const EXCLUDE_FROM_DATABASE: bool = true;
 
     type EventData = LogNep297EventData;
     type RealtimeEventFilter = RtLogNep297Filter;

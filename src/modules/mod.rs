@@ -38,4 +38,5 @@ pub struct RawEvent {
         fn(PgPool, serde_json::Value) -> BoxFutureWithLifetime<'static, Result<(), anyhow::Error>>,
     pub event_data_schema: RootSchema,
     pub db_filter_schema: RootSchema,
+    pub excluded_from_database: bool,
 }

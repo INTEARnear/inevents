@@ -9,6 +9,7 @@ pub trait Event {
     const ID: &'static str;
     const DESCRIPTION: Option<&'static str> = None;
     const CATEGORY: &'static str = "Unspecified";
+    const EXCLUDE_FROM_DATABASE: bool = false;
 
     type EventData: Serialize + for<'de> Deserialize<'de> + JsonSchema;
     type RealtimeEventFilter: RealtimeEventFilter<Event = Self>;

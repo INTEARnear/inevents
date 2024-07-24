@@ -23,6 +23,9 @@ impl EventModule for RedisToPostgres {
         let mut tasks = Vec::new();
         let cancellation_token = CancellationToken::new();
         for event in E::events() {
+            if event.excluded_from_database {
+                continue;
+            }
             let cancellation_token = cancellation_token.clone();
             let pg_pool = pg_pool.clone();
             let redis_connection = redis_connection.clone();

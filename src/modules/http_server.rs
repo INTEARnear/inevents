@@ -120,6 +120,9 @@ impl EventModule for HttpServer {
                 ),
             );
             for event in E::events() {
+                if event.excluded_from_database {
+                    continue;
+                }
                 api = api.service(create_route(event));
             }
 
@@ -183,6 +186,9 @@ pub fn create_openapi_spec<E: EventCollection>() -> OpenApi {
         .components(Some({
             let mut builder = ComponentsBuilder::new();
             for event in E::events() {
+                if event.excluded_from_database {
+                    continue;
+                }
                 let schema = event.event_data_schema;
                 for definition in schema.definitions {
                     builder = builder.schema(
@@ -197,6 +203,9 @@ pub fn create_openapi_spec<E: EventCollection>() -> OpenApi {
             let mut builder = PathsBuilder::new();
             let pagination_schema = schemars::schema_for!(PaginationParameters);
             for event in E::events() {
+                if event.excluded_from_database {
+                    continue;
+                }
                 builder = builder.path(
                     "/query/".to_owned() + event.event_identifier,
                     PathItemBuilder::new()

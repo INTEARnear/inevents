@@ -61,6 +61,7 @@ macro_rules! create_events {
                         },
                         event_data_schema: ::schemars::schema_for!(<$event as $crate::events::event::Event>::EventData),
                         db_filter_schema: ::schemars::schema_for!(<<$event as $crate::events::event::Event>::DatabaseAdapter as $crate::events::event::DatabaseEventAdapter>::Filter),
+                        excluded_from_database: <$event as $crate::events::event::Event>::EXCLUDE_FROM_DATABASE,
                     }
                 ),*]
             }

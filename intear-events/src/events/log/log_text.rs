@@ -24,6 +24,7 @@ impl Event for LogTextEvent {
     const ID: &'static str = Self::ID;
     const DESCRIPTION: Option<&'static str> = Some("All logs produced by smart contracts");
     const CATEGORY: &'static str = "Logs";
+    const EXCLUDE_FROM_DATABASE: bool = true;
 
     type EventData = LogTextEventData;
     type RealtimeEventFilter = RtLogTextFilter;
