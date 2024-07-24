@@ -27,7 +27,9 @@ use inevents::{
 #[actix::main]
 async fn main() {
     use intear_events::events::{
-        newcontract::nep141::NewContractNep141Event, socialdb::index::SocialDBIndexEvent,
+        log::{log_nep297::LogNep297Event, log_text::LogTextEvent},
+        newcontract::nep141::NewContractNep141Event,
+        socialdb::index::SocialDBIndexEvent,
     };
 
     dotenvy::dotenv().ok();
@@ -67,6 +69,8 @@ async fn main() {
         PriceTokenEvent,
         NewContractNep141Event,
         SocialDBIndexEvent,
+        LogTextEvent,
+        LogNep297Event,
     );
 
     let mut futures = Vec::new();

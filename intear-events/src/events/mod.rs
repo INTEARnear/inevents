@@ -1,3 +1,4 @@
+pub mod log;
 pub mod newcontract;
 pub mod nft;
 pub mod potlock;
