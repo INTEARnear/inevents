@@ -91,6 +91,7 @@ impl DatabaseEventAdapter for DbPricePoolAdapter {
     async fn insert(
         event: &<Self::Event as Event>::EventData,
         pool: &Pool<Postgres>,
+        _testnet: bool,
     ) -> Result<PgQueryResult, sqlx::Error> {
         sqlx::query!(r#"
             INSERT INTO price_pool (timestamp, block_height, pool_id, token0, token1, token0_in_1_token1, token1_in_1_token0)
@@ -115,6 +116,7 @@ impl DatabaseEventFilter for DbPricePoolFilter {
         &self,
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
+        _testnet: bool,
     ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
         let involved_token_account_ids = self
             .involved_token_account_ids

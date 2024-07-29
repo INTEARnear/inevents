@@ -67,6 +67,7 @@ impl DatabaseEventAdapter for DbNftMintAdapter {
     async fn insert(
         event: &<Self::Event as Event>::EventData,
         pool: &Pool<Postgres>,
+        _testnet: bool,
     ) -> Result<PgQueryResult, sqlx::Error> {
         sqlx::query!(r#"INSERT INTO nft_mint (timestamp, transaction_id, receipt_id, block_height, contract_id, owner_id, token_ids, memo)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -93,6 +94,7 @@ impl DatabaseEventFilter for DbNftMintFilter {
         &self,
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
+        _testnet: bool,
     ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
         sqlx::query!(r#"
             WITH blocks AS (

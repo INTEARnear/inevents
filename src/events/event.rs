@@ -10,6 +10,7 @@ pub trait Event {
     const DESCRIPTION: Option<&'static str> = None;
     const CATEGORY: &'static str = "Unspecified";
     const EXCLUDE_FROM_DATABASE: bool = false;
+    const SUPPORTS_TESTNET: bool = false;
 
     type EventData: Serialize + for<'de> Deserialize<'de> + JsonSchema;
     type RealtimeEventFilter: RealtimeEventFilter<Event = Self>;
@@ -29,6 +30,7 @@ pub trait DatabaseEventAdapter {
     fn insert(
         event: &<Self::Event as Event>::EventData,
         pool: &Pool<Postgres>,
+        testnet: bool,
     ) -> impl Future<Output = Result<PgQueryResult, sqlx::Error>>;
 }
 
@@ -39,6 +41,7 @@ pub trait DatabaseEventFilter {
         &self,
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
+        testnet: bool,
     ) -> impl Future<Output = Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error>>;
 }
 

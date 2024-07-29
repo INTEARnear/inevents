@@ -19,16 +19,16 @@ use inevents::events::event::{
 pub struct NewContractNep141Event;
 
 impl NewContractNep141Event {
-    pub const ID: &'static str = "newcontract_nep141";
+    pub const ID: &'static str = "newtoken_nep141";
 }
 
 #[cfg(feature = "impl")]
 impl Event for NewContractNep141Event {
     const ID: &'static str = Self::ID;
-    const CATEGORY: &'static str = "New Contract Deployments";
+    const CATEGORY: &'static str = "New Tokens";
 
     type EventData = NewContractNep141EventData;
-    type RealtimeEventFilter = RtDbNewContractNep141Filter;
+    type RealtimeEventFilter = RtNewContractNep141Filter;
     type DatabaseAdapter = DbNewContractNep141Adapter;
 }
 
@@ -63,6 +63,7 @@ impl DatabaseEventAdapter for DbNewContractNep141Adapter {
     async fn insert(
         event: &<Self::Event as Event>::EventData,
         pool: &Pool<Postgres>,
+        _testnet: bool,
     ) -> Result<PgQueryResult, sqlx::Error> {
         sqlx::query!(
             r#"
@@ -86,6 +87,7 @@ impl DatabaseEventFilter for NewContractNep141Filter {
         &self,
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
+        _testnet: bool,
     ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
         sqlx::query!(
             r#"
@@ -120,13 +122,13 @@ impl DatabaseEventFilter for NewContractNep141Filter {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct RtDbNewContractNep141Filter {
+pub struct RtNewContractNep141Filter {
     pub account_id: Option<AccountId>,
     pub parent_account_id: Option<AccountId>,
 }
 
 #[cfg(feature = "impl")]
-impl RealtimeEventFilter for RtDbNewContractNep141Filter {
+impl RealtimeEventFilter for RtNewContractNep141Filter {
     type Event = NewContractNep141Event;
 
     fn matches(&self, event: &<Self::Event as Event>::EventData) -> bool {

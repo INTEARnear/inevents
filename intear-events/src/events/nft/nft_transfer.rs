@@ -82,6 +82,7 @@ impl DatabaseEventAdapter for DbNftTransferAdapter {
     async fn insert(
         event: &<Self::Event as Event>::EventData,
         pool: &Pool<Postgres>,
+        _testnet: bool,
     ) -> Result<PgQueryResult, sqlx::Error> {
         sqlx::query!(r#"INSERT INTO nft_transfer (timestamp, transaction_id, receipt_id, block_height, contract_id, old_owner_id, new_owner_id, token_ids, memo, token_prices_near)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -109,6 +110,7 @@ impl DatabaseEventFilter for DbNftTransferFilter {
         &self,
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
+        _testnet: bool,
     ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
         let involved_account_ids = self
             .involved_account_ids

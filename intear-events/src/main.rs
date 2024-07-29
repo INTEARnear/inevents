@@ -28,7 +28,7 @@ use inevents::{
 async fn main() {
     use intear_events::events::{
         log::{log_nep297::LogNep297Event, log_text::LogTextEvent},
-        newcontract::nep141::NewContractNep141Event,
+        newcontract::{meme_cooking::NewMemeCookingMemeEvent, nep141::NewContractNep141Event},
         socialdb::index::SocialDBIndexEvent,
     };
 
@@ -71,6 +71,7 @@ async fn main() {
         SocialDBIndexEvent,
         LogTextEvent,
         LogNep297Event,
+        NewMemeCookingMemeEvent,
     );
 
     let mut futures = Vec::new();

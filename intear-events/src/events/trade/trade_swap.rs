@@ -136,6 +136,7 @@ impl DatabaseEventAdapter for DbTradeSwapAdapter {
     async fn insert(
         event: &<Self::Event as Event>::EventData,
         pool: &Pool<Postgres>,
+        _testnet: bool,
     ) -> Result<PgQueryResult, sqlx::Error> {
         sqlx::query!(
             r#"
@@ -160,6 +161,7 @@ impl DatabaseEventFilter for DbTradeSwapFilter {
         &self,
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
+        _testnet: bool,
     ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
         let involved_token_account_ids = self
             .involved_token_account_ids

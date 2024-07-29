@@ -17,12 +17,12 @@ macro_rules! create_events {
                         event_identifier: <$event as $crate::events::event::Event>::ID,
                         event_description: <$event as $crate::events::event::Event>::DESCRIPTION,
                         event_category: <$event as $crate::events::event::Event>::CATEGORY,
-                        query_paginated: |pagination, pool, request| {
+                        query_paginated: |pagination, pool, request, testnet| {
                             ::std::boxed::Box::pin(async move {
                                 let filter: ::std::result::Result<$crate::actix_web::web::Query<<<$event as $crate::events::event::Event>::DatabaseAdapter as $crate::events::event::DatabaseEventAdapter>::Filter>, $crate::actix_web::error::Error> = <$crate::actix_web::web::Query<<<$event as $crate::events::event::Event>::DatabaseAdapter as $crate::events::event::DatabaseEventAdapter>::Filter> as $crate::actix_web::FromRequest>::extract(&request).await; // wtf is this
                                 match filter {
                                     ::std::result::Result::Ok(filter) => {
-                                        ::std::result::Result::Ok($crate::events::event::DatabaseEventFilter::query_paginated(&filter.0, &pagination, &pool)
+                                        ::std::result::Result::Ok($crate::events::event::DatabaseEventFilter::query_paginated(&filter.0, &pagination, &pool, testnet)
                                             .await
                                             .map_err($crate::modules::http_server::AppError::Db)?
                                             .into_iter()
@@ -44,10 +44,10 @@ macro_rules! create_events {
                                 <<$event as $crate::events::event::Event>::RealtimeEventFilter as $crate::events::event::RealtimeEventFilter>::matches(&filter, &event)
                             }))
                         },
-                        insert_into_postgres: |pool, event| {
+                        insert_into_postgres: |pool, event, testnet| {
                             ::std::boxed::Box::pin(async move {
                                 let event: <$event as $crate::events::event::Event>::EventData = $crate::serde_json::from_value(event).expect("Error deserializing event");
-                                <<$event as $crate::events::event::Event>::DatabaseAdapter as $crate::events::event::DatabaseEventAdapter>::insert(&event, &pool)
+                                <<$event as $crate::events::event::Event>::DatabaseAdapter as $crate::events::event::DatabaseEventAdapter>::insert(&event, &pool, testnet)
                                     .await
                                     .map_err(|err| $crate::anyhow::anyhow!(err))
                                     .and_then(|res| {
@@ -62,6 +62,7 @@ macro_rules! create_events {
                         event_data_schema: ::schemars::schema_for!(<$event as $crate::events::event::Event>::EventData),
                         db_filter_schema: ::schemars::schema_for!(<<$event as $crate::events::event::Event>::DatabaseAdapter as $crate::events::event::DatabaseEventAdapter>::Filter),
                         excluded_from_database: <$event as $crate::events::event::Event>::EXCLUDE_FROM_DATABASE,
+                        supports_testnet: <$event as $crate::events::event::Event>::SUPPORTS_TESTNET,
                     }
                 ),*]
             }

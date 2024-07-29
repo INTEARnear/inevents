@@ -32,11 +32,15 @@ pub struct RawEvent {
     pub event_description: Option<&'static str>,
     pub event_category: &'static str,
     pub query_paginated:
-        fn(PaginationParameters, Pool<Postgres>, HttpRequest) -> BoxFuture<PaginatedResponse>,
+        fn(PaginationParameters, Pool<Postgres>, HttpRequest, bool) -> BoxFuture<PaginatedResponse>,
     pub realtime_filter_constructor: fn(&str) -> Result<FilterFn, anyhow::Error>,
-    pub insert_into_postgres:
-        fn(PgPool, serde_json::Value) -> BoxFutureWithLifetime<'static, Result<(), anyhow::Error>>,
+    pub insert_into_postgres: fn(
+        PgPool,
+        serde_json::Value,
+        bool,
+    ) -> BoxFutureWithLifetime<'static, Result<(), anyhow::Error>>,
     pub event_data_schema: RootSchema,
     pub db_filter_schema: RootSchema,
     pub excluded_from_database: bool,
+    pub supports_testnet: bool,
 }

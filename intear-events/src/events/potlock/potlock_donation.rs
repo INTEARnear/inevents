@@ -94,6 +94,7 @@ impl DatabaseEventAdapter for DbPotlockDonationAdapter {
     async fn insert(
         event: &<Self::Event as Event>::EventData,
         pool: &Pool<Postgres>,
+        _testnet: bool,
     ) -> Result<PgQueryResult, sqlx::Error> {
         sqlx::query!(
             r#"
@@ -126,6 +127,7 @@ impl DatabaseEventFilter for DbPotlockDonationFilter {
         &self,
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
+        _testnet: bool,
     ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
         sqlx::query!(r#"
             WITH blocks AS (

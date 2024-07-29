@@ -26,6 +26,7 @@ impl Event for LogNep297Event {
     const DESCRIPTION: Option<&'static str> = Some("All NEP-297 (https://nomicon.io/Standards/EventsFormat) events produced by smart contracts");
     const CATEGORY: &'static str = "Logs";
     const EXCLUDE_FROM_DATABASE: bool = true;
+    const SUPPORTS_TESTNET: bool = true;
 
     type EventData = LogNep297EventData;
     type RealtimeEventFilter = RtLogNep297Filter;
@@ -72,30 +73,33 @@ impl DatabaseEventAdapter for DbLogNep297Adapter {
     type Filter = DbPriceTokenFilter;
 
     async fn insert(
-        event: &<Self::Event as Event>::EventData,
-        pool: &Pool<Postgres>,
+        _event: &<Self::Event as Event>::EventData,
+        _pool: &Pool<Postgres>,
+        _testnet: bool,
     ) -> Result<PgQueryResult, sqlx::Error> {
-        sqlx::query!(
-            r#"
-            INSERT INTO log_nep297 (timestamp, transaction_id, receipt_id, block_height, account_id, predecessor_id, event_standard, event_version, event_event, event_data)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-            "#,
-            chrono::DateTime::from_timestamp(
-                (event.block_timestamp_nanosec / 1_000_000_000) as i64,
-                (event.block_timestamp_nanosec % 1_000_000_000) as u32
-            ),
-            event.transaction_id.to_string(),
-            event.receipt_id.to_string(),
-            event.block_height as i64,
-            event.account_id.to_string(),
-            event.predecessor_id.to_string(),
-            event.event_standard,
-            event.event_version,
-            event.event_event,
-            event.event_data,
-        )
-        .execute(pool)
-        .await
+        // sqlx::query!(
+        //     r#"
+        //     INSERT INTO log_nep297 (timestamp, transaction_id, receipt_id, block_height, account_id, predecessor_id, event_standard, event_version, event_event, event_data)
+        //     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        //     "#,
+        //     chrono::DateTime::from_timestamp(
+        //         (event.block_timestamp_nanosec / 1_000_000_000) as i64,
+        //         (event.block_timestamp_nanosec % 1_000_000_000) as u32
+        //     ),
+        //     event.transaction_id.to_string(),
+        //     event.receipt_id.to_string(),
+        //     event.block_height as i64,
+        //     event.account_id.to_string(),
+        //     event.predecessor_id.to_string(),
+        //     event.event_standard,
+        //     event.event_version,
+        //     event.event_event,
+        //     event.event_data,
+        // )
+        // .execute(pool)
+        // .await
+        // TODO add testnet support
+        unimplemented!()
     }
 }
 
@@ -107,6 +111,7 @@ impl DatabaseEventFilter for DbPriceTokenFilter {
         &self,
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
+        _testnet: bool,
     ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
         sqlx::query!(
             r#"

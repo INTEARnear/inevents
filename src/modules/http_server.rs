@@ -108,7 +108,8 @@ impl EventModule for HttpServer {
                 .max_age(3600)
                 .supports_credentials();
 
-            let openapi = create_openapi_spec::<E>();
+            let openapi = create_openapi_spec::<E>(false);
+            let openapi_testnet = create_openapi_spec::<E>(true);
             let mut api = web::scope("/query").service(
                 web::scope("swagger-ui").service(
                     SwaggerUi::new("/{_:.*}")
@@ -123,7 +124,26 @@ impl EventModule for HttpServer {
                 if event.excluded_from_database {
                     continue;
                 }
-                api = api.service(create_route(event));
+                api = api.service(create_route(event, false));
+            }
+
+            let mut api_testnet = web::scope("/query-testnet").service(
+                web::scope("swagger-ui").service(
+                    SwaggerUi::new("/{_:.*}")
+                        .url("/swagger.json", openapi_testnet)
+                        .config(
+                            Config::from("/query-testnet/swagger-ui/swagger.json")
+                                .request_snippets_enabled(true),
+                        ),
+                ),
+            );
+            for event in E::events() {
+                if event.excluded_from_database {
+                    continue;
+                }
+                if event.supports_testnet {
+                    api_testnet = api_testnet.service(create_route(event, true));
+                }
             }
 
             let state = AppState {
@@ -133,6 +153,7 @@ impl EventModule for HttpServer {
             App::new()
                 .app_data(web::Data::new(state))
                 .service(api)
+                .service(api_testnet)
                 .wrap(cors)
                 .wrap(middleware::Logger::new(
                     "[HTTP] %{r}a %a \"%r\"        Code: %s Size: %b bytes \"%{Referer}i\" \"%{User-Agent}i\" %T",
@@ -154,7 +175,7 @@ impl EventModule for HttpServer {
     }
 }
 
-fn create_route(event: RawEvent) -> impl HttpServiceFactory {
+fn create_route(event: RawEvent, testnet: bool) -> impl HttpServiceFactory {
     web::resource(event.event_identifier).route(web::get().to(
         move |state: web::Data<AppState>,
               pagination: web::Query<PaginationParameters>,
@@ -165,19 +186,19 @@ fn create_route(event: RawEvent) -> impl HttpServiceFactory {
                     max: MAX_BLOCKS_PER_REQUEST,
                 });
             }
-            (event.query_paginated)(pagination.0, state.pg_pool.clone(), request)
+            (event.query_paginated)(pagination.0, state.pg_pool.clone(), request, testnet)
                 .await
                 .map(|res| HttpResponse::Ok().json(res))
         },
     ))
 }
 
-pub fn create_openapi_spec<E: EventCollection>() -> OpenApi {
+pub fn create_openapi_spec<E: EventCollection>(testnet: bool) -> OpenApi {
     OpenApiBuilder::new()
         .info(
             InfoBuilder::new()
                 .title(env!("CARGO_PKG_NAME"))
-                .version(env!("CARGO_PKG_VERSION"))
+                .version(format!("{}-{}", env!("CARGO_PKG_VERSION"), if testnet { "testnet" } else { "mainnet" }))
                 .description(Some(concat!(
                     "Automatically generated documentation for ",
                     env!("CARGO_PKG_NAME")
@@ -187,6 +208,9 @@ pub fn create_openapi_spec<E: EventCollection>() -> OpenApi {
             let mut builder = ComponentsBuilder::new();
             for event in E::events() {
                 if event.excluded_from_database {
+                    continue;
+                }
+                if testnet && !event.supports_testnet {
                     continue;
                 }
                 let schema = event.event_data_schema;
@@ -206,8 +230,11 @@ pub fn create_openapi_spec<E: EventCollection>() -> OpenApi {
                 if event.excluded_from_database {
                     continue;
                 }
+                if testnet && !event.supports_testnet {
+                    continue;
+                }
                 builder = builder.path(
-                    "/query/".to_owned() + event.event_identifier,
+                    format!("/query{}/{}", if testnet { "-testnet" } else { "" }, event.event_identifier),
                     PathItemBuilder::new()
                         .parameters(Some({
                             if let Some(object) = &pagination_schema.schema.object {

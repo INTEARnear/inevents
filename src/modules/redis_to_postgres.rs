@@ -26,24 +26,48 @@ impl EventModule for RedisToPostgres {
             if event.excluded_from_database {
                 continue;
             }
-            let cancellation_token = cancellation_token.clone();
-            let pg_pool = pg_pool.clone();
-            let redis_connection = redis_connection.clone();
+            let pg_pool_cloned = pg_pool.clone();
+            let redis_connection_cloned = redis_connection.clone();
+            let cancellation_token_cloned = cancellation_token.clone();
             tasks.push(tokio::spawn(async move {
-                let mut stream = RedisEventStream::new(redis_connection, event.event_identifier);
+                let mut stream =
+                    RedisEventStream::new(redis_connection_cloned, event.event_identifier);
                 if let Err(err) = stream
                     .start_reading_events(
                         "redis_to_postgres",
                         |value: serde_json::Value| {
-                            (event.insert_into_postgres)(pg_pool.clone(), value)
+                            (event.insert_into_postgres)(pg_pool_cloned.clone(), value, true)
                         },
-                        || cancellation_token.is_cancelled(),
+                        || cancellation_token_cloned.is_cancelled(),
                     )
                     .await
                 {
                     log::error!("Error reading events from Redis: {err:?}");
                 }
             }));
+            if event.supports_testnet {
+                let redis_connection_cloned = redis_connection.clone();
+                let pg_pool_cloned = pg_pool.clone();
+                let cancellation_token_cloned = cancellation_token.clone();
+                tasks.push(tokio::spawn(async move {
+                    let mut stream = RedisEventStream::new(
+                        redis_connection_cloned,
+                        format!("{}_testnet", event.event_identifier),
+                    );
+                    if let Err(err) = stream
+                        .start_reading_events(
+                            "redis_to_postgres",
+                            |value: serde_json::Value| {
+                                (event.insert_into_postgres)(pg_pool_cloned.clone(), value, false)
+                            },
+                            || cancellation_token_cloned.is_cancelled(),
+                        )
+                        .await
+                    {
+                        log::error!("Error reading events from Redis: {err:?}");
+                    }
+                }));
+            }
         }
         let task = tokio::spawn(futures::future::join_all(tasks));
         tokio::signal::ctrl_c()

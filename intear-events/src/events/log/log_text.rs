@@ -25,6 +25,7 @@ impl Event for LogTextEvent {
     const DESCRIPTION: Option<&'static str> = Some("All logs produced by smart contracts");
     const CATEGORY: &'static str = "Logs";
     const EXCLUDE_FROM_DATABASE: bool = true;
+    const SUPPORTS_TESTNET: bool = true;
 
     type EventData = LogTextEventData;
     type RealtimeEventFilter = RtLogTextFilter;
@@ -65,27 +66,30 @@ impl DatabaseEventAdapter for DbLogTextAdapter {
     type Filter = DbPriceTokenFilter;
 
     async fn insert(
-        event: &<Self::Event as Event>::EventData,
-        pool: &Pool<Postgres>,
+        _event: &<Self::Event as Event>::EventData,
+        _pool: &Pool<Postgres>,
+        _testnet: bool,
     ) -> Result<PgQueryResult, sqlx::Error> {
-        sqlx::query!(
-            r#"
-            INSERT INTO log_text (timestamp, transaction_id, receipt_id, block_height, account_id, predecessor_id, log_text)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            "#,
-            chrono::DateTime::from_timestamp(
-                (event.block_timestamp_nanosec / 1_000_000_000) as i64,
-                (event.block_timestamp_nanosec % 1_000_000_000) as u32
-            ),
-            event.transaction_id.to_string(),
-            event.receipt_id.to_string(),
-            event.block_height as i64,
-            event.account_id.to_string(),
-            event.predecessor_id.to_string(),
-            event.log_text,
-        )
-        .execute(pool)
-        .await
+        // sqlx::query!(
+        //     r#"
+        //     INSERT INTO log_text (timestamp, transaction_id, receipt_id, block_height, account_id, predecessor_id, log_text)
+        //     VALUES ($1, $2, $3, $4, $5, $6, $7)
+        //     "#,
+        //     chrono::DateTime::from_timestamp(
+        //         (event.block_timestamp_nanosec / 1_000_000_000) as i64,
+        //         (event.block_timestamp_nanosec % 1_000_000_000) as u32
+        //     ),
+        //     event.transaction_id.to_string(),
+        //     event.receipt_id.to_string(),
+        //     event.block_height as i64,
+        //     event.account_id.to_string(),
+        //     event.predecessor_id.to_string(),
+        //     event.log_text,
+        // )
+        // .execute(pool)
+        // .await
+        // TODO add testnet support
+        unimplemented!()
     }
 }
 
@@ -97,6 +101,7 @@ impl DatabaseEventFilter for DbPriceTokenFilter {
         &self,
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
+        _testnet: bool,
     ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
         sqlx::query!(
             r#"
