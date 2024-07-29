@@ -45,7 +45,15 @@ impl EventModule for WebsocketServer {
             sockets: HashMap::from_iter(
                 E::events()
                     .into_iter()
-                    .map(|event| (event.event_identifier, Arc::new(DashSet::new()))),
+                    .map(|event| ((event.event_identifier, false), Arc::new(DashSet::new())))
+                    .chain(
+                        E::events()
+                            .into_iter()
+                            .filter(|event| event.supports_testnet)
+                            .map(|event| {
+                                ((event.event_identifier, true), Arc::new(DashSet::new()))
+                            }),
+                    ),
             ),
         };
         let server_addr = server.start();
@@ -58,6 +66,19 @@ impl EventModule for WebsocketServer {
                 event,
                 server_addr.clone(),
                 cancellation_token.clone(),
+                false,
+            ));
+        }
+        for event in E::events()
+            .into_iter()
+            .filter(|event| event.supports_testnet)
+        {
+            join_handles.push(launch_event_stream(
+                redis_connection.clone(),
+                event,
+                server_addr.clone(),
+                cancellation_token.clone(),
+                true,
             ));
         }
 
@@ -93,12 +114,20 @@ impl EventModule for WebsocketServer {
 
             let mut api = web::scope("/events");
             for event in E::events() {
-                api = api.service(create_route(event));
+                api = api.service(create_route(event, false));
+            }
+
+            let mut api_testnet = web::scope("/events-testnet");
+            for event in E::events() {
+                if event.supports_testnet {
+                    api_testnet = api_testnet.service(create_route(event, true));
+                }
             }
 
             App::new()
                 .app_data(web::Data::new(server_addr.clone()))
                 .service(api)
+                .service(api_testnet)
                 .wrap(cors)
                 .wrap(middleware::Logger::new(
                     "[WS] %{r}a %a \"%r\"        Code: %s \"%{Referer}i\" \"%{User-Agent}i\" %T",
@@ -132,14 +161,14 @@ impl EventModule for WebsocketServer {
 }
 
 struct Server {
-    sockets: HashMap<&'static str, Arc<DashSet<Addr<EventWebSocket>>>>,
+    sockets: HashMap<(&'static str, bool), Arc<DashSet<Addr<EventWebSocket>>>>,
 }
 
 impl Handler<UnsubscribeFromEvents> for Server {
     type Result = ();
 
     fn handle(&mut self, msg: UnsubscribeFromEvents, _ctx: &mut Self::Context) -> Self::Result {
-        self.sockets[msg.1].remove(&msg.0);
+        self.sockets[&(msg.1, msg.2)].remove(&msg.0);
     }
 }
 
@@ -147,13 +176,13 @@ impl Handler<SubscribeToEvents> for Server {
     type Result = ();
 
     fn handle(&mut self, msg: SubscribeToEvents, _ctx: &mut Self::Context) -> Self::Result {
-        self.sockets[msg.1].insert(msg.0);
+        self.sockets[&(msg.1, msg.2)].insert(msg.0);
     }
 }
 
 #[derive(Debug, Message)]
 #[rtype(result = "()")]
-struct UntypedEvent(&'static str, String, serde_json::Value);
+struct UntypedEvent(&'static str, String, serde_json::Value, bool);
 
 pub struct EventWebSocket {
     last_heartbeat: Instant,
@@ -161,6 +190,7 @@ pub struct EventWebSocket {
     filter: FilterFn,
     server: Addr<Server>,
     event_identifier: &'static str,
+    testnet: bool,
 }
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -182,8 +212,11 @@ impl Actor for EventWebSocket {
     }
 
     fn stopping(&mut self, ctx: &mut Self::Context) -> Running {
-        self.server
-            .do_send(UnsubscribeFromEvents(ctx.address(), self.event_identifier));
+        self.server.do_send(UnsubscribeFromEvents(
+            ctx.address(),
+            self.event_identifier,
+            self.testnet,
+        ));
         Running::Stop
     }
 }
@@ -207,7 +240,7 @@ impl Handler<UntypedEvent> for Server {
 
     fn handle(&mut self, msg: UntypedEvent, _ctx: &mut Self::Context) -> Self::Result {
         let msg = Arc::new(msg);
-        for socket in self.sockets.get(msg.0).unwrap().iter() {
+        for socket in self.sockets.get(&(msg.0, msg.3)).unwrap().iter() {
             socket.do_send(Arc::clone(&msg));
         }
     }
@@ -248,11 +281,11 @@ impl Handler<Arc<UntypedEvent>> for EventWebSocket {
 
 #[derive(Message)]
 #[rtype(result = "()")]
-struct SubscribeToEvents(Addr<EventWebSocket>, &'static str);
+struct SubscribeToEvents(Addr<EventWebSocket>, &'static str, bool);
 
 #[derive(Message)]
 #[rtype(result = "()")]
-struct UnsubscribeFromEvents(Addr<EventWebSocket>, &'static str);
+struct UnsubscribeFromEvents(Addr<EventWebSocket>, &'static str, bool);
 
 async fn create_connection(url: &str) -> ConnectionManager {
     let client = redis::Client::open(url).expect("Failed to connect to Redis");
@@ -261,7 +294,7 @@ async fn create_connection(url: &str) -> ConnectionManager {
         .expect("Failed to connect to Redis")
 }
 
-fn create_route(event: RawEvent) -> impl HttpServiceFactory {
+fn create_route(event: RawEvent, testnet: bool) -> impl HttpServiceFactory {
     web::resource(event.event_identifier).route(web::get().to(
         move |req: HttpRequest, stream: web::Payload, server: web::Data<Addr<Server>>| async move {
             let (addr, res) = WsResponseBuilder::new(
@@ -271,13 +304,14 @@ fn create_route(event: RawEvent) -> impl HttpServiceFactory {
                     filter: Box::new(|_| true), // no filter by default
                     server: server.get_ref().clone(),
                     event_identifier: event.event_identifier,
+                    testnet,
                 },
                 &req,
                 stream,
             )
             .start_with_addr()?;
             server
-                .send(SubscribeToEvents(addr, event.event_identifier))
+                .send(SubscribeToEvents(addr, event.event_identifier, testnet))
                 .await
                 .unwrap();
             Result::<HttpResponse, actix_web::Error>::Ok(res)
@@ -287,21 +321,29 @@ fn create_route(event: RawEvent) -> impl HttpServiceFactory {
 
 fn launch_event_stream(
     redis_connection: ConnectionManager,
-    event: RawEvent,
+    raw_event: RawEvent,
     server: Addr<Server>,
     cancellation_token: CancellationToken,
+    testnet: bool,
 ) -> JoinHandle<()> {
-    let event_identifier = event.event_identifier;
     tokio::spawn(async move {
-        let mut stream = RedisEventStream::new(redis_connection, event_identifier);
+        let mut stream = RedisEventStream::new(
+            redis_connection,
+            if testnet {
+                format!("{}_testnet", raw_event.event_identifier)
+            } else {
+                raw_event.event_identifier.to_string()
+            },
+        );
         stream
             .start_reading_events(
                 "websocket",
                 |event: serde_json::Value| {
                     server.do_send(UntypedEvent(
-                        event_identifier,
+                        raw_event.event_identifier,
                         serde_json::to_string(&event).unwrap(),
                         event,
+                        testnet,
                     ));
                     async { Ok(()) }
                 },
