@@ -49,7 +49,7 @@ pub struct SocialDBIndexEventData {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct DbPriceTokenFilter {
+pub struct DbSocialDBIndexFilter {
     #[schemars(with = "Option<String>")]
     pub account_id: Option<AccountId>,
     #[schemars(with = "Option<String>")]
@@ -62,7 +62,7 @@ pub struct DbSocialDBIndexAdapter;
 #[cfg(feature = "impl")]
 impl DatabaseEventAdapter for DbSocialDBIndexAdapter {
     type Event = SocialDBIndexEvent;
-    type Filter = DbPriceTokenFilter;
+    type Filter = DbSocialDBIndexFilter;
 
     async fn insert(
         event: &<Self::Event as Event>::EventData,
@@ -92,7 +92,7 @@ impl DatabaseEventAdapter for DbSocialDBIndexAdapter {
 }
 
 #[cfg(feature = "impl")]
-impl DatabaseEventFilter for DbPriceTokenFilter {
+impl DatabaseEventFilter for DbSocialDBIndexFilter {
     type Event = SocialDBIndexEvent;
 
     async fn query_paginated(
@@ -147,7 +147,6 @@ impl DatabaseEventFilter for DbPriceTokenFilter {
 #[derive(Debug, Deserialize)]
 pub struct RtSocialDBIndexFilter {
     pub account_id: Option<AccountId>,
-    pub token: Option<String>,
     pub index_type: Option<String>,
     pub index_key: Option<serde_json::Value>,
     pub index_value: Option<serde_json::Value>,
@@ -160,12 +159,6 @@ impl RealtimeEventFilter for RtSocialDBIndexFilter {
     fn matches(&self, event: &<Self::Event as Event>::EventData) -> bool {
         if let Some(account_id) = &self.account_id {
             if account_id != &event.account_id {
-                return false;
-            }
-        }
-
-        if let Some(token) = &self.token {
-            if token != &event.index_type {
                 return false;
             }
         }

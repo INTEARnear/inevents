@@ -198,7 +198,6 @@ pub struct RtPotlockPotProjectDonationFilter {
     pub project_id: Option<ProjectId>,
     pub donor_id: Option<AccountId>,
     pub referrer_id: Option<AccountId>,
-    pub min_amounts: Option<HashMap<AccountId, Balance>>,
 }
 
 #[cfg(feature = "impl")]
@@ -227,14 +226,6 @@ impl RealtimeEventFilter for RtPotlockPotProjectDonationFilter {
         if let Some(referrer_id) = &self.referrer_id {
             if event.referrer_id.as_ref() != Some(referrer_id) {
                 return false;
-            }
-        }
-
-        if let Some(min_amounts) = &self.min_amounts {
-            if let Some(min_amount) = min_amounts.get(&event.donor_id) {
-                if event.total_amount < *min_amount {
-                    return false;
-                }
             }
         }
 
