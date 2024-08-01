@@ -12,7 +12,10 @@ use actix::prelude::{
 };
 use actix_cors::Cors;
 use actix_web::{
-    dev::HttpServiceFactory, middleware, web, App, HttpRequest, HttpResponse, HttpServer,
+    dev::HttpServiceFactory,
+    middleware,
+    web::{self, redirect},
+    App, HttpRequest, HttpResponse, HttpServer,
 };
 use actix_web_actors::ws::{self, WsResponseBuilder};
 use async_trait::async_trait;
@@ -31,11 +34,21 @@ use tokio_util::sync::CancellationToken;
 // 5. EventWebSocket: Checks if the event matches the filter using EventFilter trait and sends JSON-serialized event to the client
 // 6. EventWebSocket -> Server: UnsubscribeFromEvents
 // 7. Server: Removes the client from the list of subscribers
-pub struct WebsocketServer;
+pub struct WebsocketServer {
+    redirect_from_homepage: Option<String>,
+}
+
+impl WebsocketServer {
+    pub fn new(redirect_from_homepage: Option<String>) -> Self {
+        Self {
+            redirect_from_homepage,
+        }
+    }
+}
 
 #[async_trait]
 impl EventModule for WebsocketServer {
-    async fn start<E: EventCollection>(&self) -> anyhow::Result<()> {
+    async fn start<E: EventCollection>(self) -> anyhow::Result<()> {
         let redis_connection = create_connection(
             &std::env::var("REDIS_URL").expect("REDIS_URL enviroment variable not set"),
         )
@@ -105,6 +118,7 @@ impl EventModule for WebsocketServer {
             None
         };
 
+        let redirect_from_homepage = self.redirect_from_homepage.clone();
         let server = HttpServer::new(move || {
             let cors = Cors::default()
                 .allow_any_origin()
@@ -124,14 +138,18 @@ impl EventModule for WebsocketServer {
                 }
             }
 
-            App::new()
+            let mut app = App::new()
                 .app_data(web::Data::new(server_addr.clone()))
                 .service(api)
-                .service(api_testnet)
-                .wrap(cors)
-                .wrap(middleware::Logger::new(
-                    "[WS] %{r}a %a \"%r\"        Code: %s \"%{Referer}i\" \"%{User-Agent}i\" %T",
-                ))
+                .service(api_testnet);
+
+            if let Some(redirect_from_homepage) = &redirect_from_homepage {
+                app = app.service(redirect("/", redirect_from_homepage.clone()));
+            }
+
+            app.wrap(cors).wrap(middleware::Logger::new(
+                "[WS] %{r}a %a \"%r\"        Code: %s \"%{Referer}i\" \"%{User-Agent}i\" %T",
+            ))
         });
 
         let server = if let Some(tls_config) = tls_config {

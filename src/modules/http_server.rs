@@ -9,8 +9,11 @@ use crate::events::event::{PaginationParameters, MAX_BLOCKS_PER_REQUEST};
 use super::{EventCollection, EventModule, RawEvent};
 use actix_cors::Cors;
 use actix_web::{
-    dev::HttpServiceFactory, http::StatusCode, middleware, web, App, HttpRequest, HttpResponse,
-    ResponseError,
+    dev::HttpServiceFactory,
+    http::StatusCode,
+    middleware,
+    web::{self, redirect},
+    App, HttpRequest, HttpResponse, ResponseError,
 };
 use async_trait::async_trait;
 use schemars::schema::{InstanceType, SingleOrVec};
@@ -23,7 +26,17 @@ use utoipa::openapi::{
 };
 use utoipa_swagger_ui::{Config, SwaggerUi};
 
-pub struct HttpServer;
+pub struct HttpServer {
+    redirect_from_homepage: Option<String>,
+}
+
+impl HttpServer {
+    pub fn new(redirect_from_homepage: Option<String>) -> Self {
+        Self {
+            redirect_from_homepage,
+        }
+    }
+}
 
 struct AppState {
     pg_pool: PgPool,
@@ -71,7 +84,7 @@ impl Display for AppError {
 
 #[async_trait]
 impl EventModule for HttpServer {
-    async fn start<E: EventCollection>(&self) -> Result<(), anyhow::Error> {
+    async fn start<E: EventCollection>(self) -> Result<(), anyhow::Error> {
         let pg_pool = PgPool::connect(
             &std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable must be set"),
         )
@@ -101,6 +114,7 @@ impl EventModule for HttpServer {
             None
         };
 
+        let redirect_from_homepage = self.redirect_from_homepage.clone();
         let server = actix_web::HttpServer::new(move || {
             let cors = Cors::default()
                 .allow_any_origin()
@@ -150,10 +164,16 @@ impl EventModule for HttpServer {
                 pg_pool: pg_pool.clone(),
             };
 
-            App::new()
+            let mut app = App::new()
                 .app_data(web::Data::new(state))
                 .service(api)
-                .service(api_testnet)
+                .service(api_testnet);
+
+            if let Some(redirect_from_homepage) = &redirect_from_homepage {
+                app = app.service(redirect("/", redirect_from_homepage.clone()));
+            }
+
+            app
                 .wrap(cors)
                 .wrap(middleware::Logger::new(
                     "[HTTP] %{r}a %a \"%r\"        Code: %s Size: %b bytes \"%{Referer}i\" \"%{User-Agent}i\" %T",

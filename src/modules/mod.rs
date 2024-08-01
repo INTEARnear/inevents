@@ -14,7 +14,7 @@ use crate::events::event::PaginationParameters;
 
 #[async_trait]
 pub trait EventModule {
-    async fn start<E: EventCollection>(&self) -> anyhow::Result<()>;
+    async fn start<E: EventCollection>(self) -> anyhow::Result<()>;
 }
 
 pub trait EventCollection {

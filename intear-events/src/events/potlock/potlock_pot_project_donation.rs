@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 #[cfg(feature = "impl")]
 use std::str::FromStr;
 

@@ -9,7 +9,7 @@ pub struct RedisToPostgres;
 
 #[async_trait]
 impl EventModule for RedisToPostgres {
-    async fn start<E: EventCollection>(&self) -> anyhow::Result<()> {
+    async fn start<E: EventCollection>(self) -> anyhow::Result<()> {
         let redis_connection = create_connection(
             &std::env::var("REDIS_URL").expect("REDIS_URL enviroment variable not set"),
         )

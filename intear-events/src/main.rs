@@ -78,10 +78,20 @@ async fn main() {
     for module_name in module_names {
         match module_name.as_str() {
             "http-server" => {
-                futures.push(HttpServer.start::<Events>());
+                futures.push(
+                    HttpServer::new(Some(
+                        "https://docs.intear.tech/docs/events-api/".to_string(),
+                    ))
+                    .start::<Events>(),
+                );
             }
             "websocket-server" => {
-                futures.push(WebsocketServer.start::<Events>());
+                futures.push(
+                    WebsocketServer::new(Some(
+                        "https://docs.intear.tech/docs/events-api/".to_string(),
+                    ))
+                    .start::<Events>(),
+                );
             }
             "redis-to-postgres" => {
                 futures.push(RedisToPostgres.start::<Events>());
