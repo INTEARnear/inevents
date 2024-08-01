@@ -105,25 +105,25 @@ impl DatabaseEventAdapter for DbNewMemeCookingMemeAdapter {
             ).execute(pool).await
         } else {
             sqlx::query!(
-            r#"
-            INSERT INTO new_memecooking_meme (timestamp, transaction_id, receipt_id, block_height, meme_id, owner, end_timestamp_ms, name, symbol, decimals, total_supply, reference, reference_hash, deposit_token_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-            "#,
-            chrono::DateTime::from_timestamp((event.block_timestamp_nanosec / 1_000_000_000) as i64, (event.block_timestamp_nanosec % 1_000_000_000) as u32),
-            event.transaction_id.to_string(),
-            event.receipt_id.to_string(),
-            event.block_height as i64,
-            event.meme_id as i64,
-            event.owner.as_str(),
-            event.end_timestamp_ms as i64,
-            event.name,
-            event.symbol,
-            event.decimals as i32,
-            BigDecimal::from_str(&event.total_supply.to_string()).unwrap(),
-            event.reference,
-            event.reference_hash,
-            event.deposit_token_id.as_str(),
-        ).execute(pool).await
+                r#"
+                INSERT INTO new_memecooking_meme (timestamp, transaction_id, receipt_id, block_height, meme_id, owner, end_timestamp_ms, name, symbol, decimals, total_supply, reference, reference_hash, deposit_token_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                "#,
+                chrono::DateTime::from_timestamp((event.block_timestamp_nanosec / 1_000_000_000) as i64, (event.block_timestamp_nanosec % 1_000_000_000) as u32),
+                event.transaction_id.to_string(),
+                event.receipt_id.to_string(),
+                event.block_height as i64,
+                event.meme_id as i64,
+                event.owner.as_str(),
+                event.end_timestamp_ms as i64,
+                event.name,
+                event.symbol,
+                event.decimals as i32,
+                BigDecimal::from_str(&event.total_supply.to_string()).unwrap(),
+                event.reference,
+                event.reference_hash,
+                event.deposit_token_id.as_str(),
+            ).execute(pool).await
         }
     }
 }

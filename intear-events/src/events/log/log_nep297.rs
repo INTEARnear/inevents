@@ -55,7 +55,7 @@ pub struct LogNep297EventData {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct DbPriceTokenFilter {
+pub struct DbLogNep297Filter {
     #[schemars(with = "Option<String>")]
     pub account_id: Option<AccountId>,
     #[schemars(with = "Option<String>")]
@@ -70,7 +70,7 @@ pub struct DbLogNep297Adapter;
 #[cfg(feature = "impl")]
 impl DatabaseEventAdapter for DbLogNep297Adapter {
     type Event = LogNep297Event;
-    type Filter = DbPriceTokenFilter;
+    type Filter = DbLogNep297Filter;
 
     async fn insert(
         _event: &<Self::Event as Event>::EventData,
@@ -104,7 +104,7 @@ impl DatabaseEventAdapter for DbLogNep297Adapter {
 }
 
 #[cfg(feature = "impl")]
-impl DatabaseEventFilter for DbPriceTokenFilter {
+impl DatabaseEventFilter for DbLogNep297Filter {
     type Event = LogNep297Event;
 
     async fn query_paginated(
