@@ -9,14 +9,15 @@ use redis::{
     AsyncCommands,
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::Sender;
 use tokio::task::JoinHandle;
+
+type Queue<T> = (JoinHandle<()>, Sender<(String, T)>);
 
 pub struct RedisEventStream<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> {
     pub connection: ConnectionManager,
     pub stream_name: String,
-    queue: OnceLock<(JoinHandle<()>, Sender<(String, T)>)>,
+    queue: OnceLock<Queue<T>>,
     _marker: std::marker::PhantomData<T>,
 }
 
@@ -104,7 +105,7 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
     /// Recommended to use block height or a timestamp. The actual index
     /// will be the stream name followed by a hyphen and the index assigned
     /// by Redis.
-    pub fn emit_event(
+    pub async fn emit_event(
         &self,
         index: impl ToString,
         value: T,
@@ -125,26 +126,24 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
                             format!("{index}-*"),
                             &[(
                                 "event",
-                                serde_json::to_string(&value)
-                                    .expect(&format!("Failed to serialize {stream_name} event")),
+                                serde_json::to_string(&value).unwrap_or_else(|_| {
+                                    panic!("Failed to serialize {stream_name} event")
+                                }),
                             )],
                         )
                         .await
-                        .expect(&format!(
-                            "Failed to emit {stream_name} event at index {index}"
-                        ));
+                        .unwrap_or_else(|_| {
+                            panic!("Failed to emit {stream_name} event at index {index}")
+                        });
                 }
             });
 
             (join_handle, tx)
         });
-        match tx.try_send((index.to_string(), value)) {
+        match tx.send((index.to_string(), value)).await {
             Ok(()) => Ok(()),
-            Err(TrySendError::Full(_)) => Err(anyhow::anyhow!(
-                "Couldn't send an event because a channel is full (capacity is {max_len})"
-            )),
-            Err(TrySendError::Closed(_)) => Err(anyhow::anyhow!(
-                "Couldn't send an event because a channel is closed"
+            Err(e) => Err(anyhow::anyhow!(
+                "Couldn't send event {e:?} because a channel is closed"
             )),
         }
     }
