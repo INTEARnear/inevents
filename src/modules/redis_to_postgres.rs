@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use super::{EventCollection, EventModule};
 use async_trait::async_trait;
 use inevents_redis::RedisEventStream;
@@ -32,17 +34,22 @@ impl EventModule for RedisToPostgres {
             tasks.push(tokio::spawn(async move {
                 let mut stream =
                     RedisEventStream::new(redis_connection_cloned, event.event_identifier);
-                if let Err(err) = stream
-                    .start_reading_events(
-                        "redis_to_postgres",
-                        |value: serde_json::Value| {
-                            (event.insert_into_postgres)(pg_pool_cloned.clone(), value, true)
-                        },
-                        || cancellation_token_cloned.is_cancelled(),
-                    )
-                    .await
-                {
-                    log::error!("Error reading events from Redis: {err:?}");
+                loop {
+                    if let Err(err) = stream
+                        .start_reading_events(
+                            "redis_to_postgres",
+                            |value: serde_json::Value| {
+                                (event.insert_into_postgres)(pg_pool_cloned.clone(), value, true)
+                            },
+                            || cancellation_token_cloned.is_cancelled(),
+                        )
+                        .await
+                    {
+                        log::warn!(
+                            "Error reading events from Redis: {err:?}\nRetrying in 10 seconds"
+                        );
+                        tokio::time::sleep(Duration::from_secs(10)).await;
+                    }
                 }
             }));
             if event.supports_testnet {
@@ -54,17 +61,26 @@ impl EventModule for RedisToPostgres {
                         redis_connection_cloned,
                         format!("{}_testnet", event.event_identifier),
                     );
-                    if let Err(err) = stream
-                        .start_reading_events(
-                            "redis_to_postgres",
-                            |value: serde_json::Value| {
-                                (event.insert_into_postgres)(pg_pool_cloned.clone(), value, false)
-                            },
-                            || cancellation_token_cloned.is_cancelled(),
-                        )
-                        .await
-                    {
-                        log::error!("Error reading events from Redis: {err:?}");
+                    loop {
+                        if let Err(err) = stream
+                            .start_reading_events(
+                                "redis_to_postgres",
+                                |value: serde_json::Value| {
+                                    (event.insert_into_postgres)(
+                                        pg_pool_cloned.clone(),
+                                        value,
+                                        false,
+                                    )
+                                },
+                                || cancellation_token_cloned.is_cancelled(),
+                            )
+                            .await
+                        {
+                            log::warn!(
+                                "Error reading events from Redis: {err:?}\nRetrying in 10 seconds"
+                            );
+                            tokio::time::sleep(Duration::from_secs(10)).await;
+                        }
                     }
                 }));
             }
