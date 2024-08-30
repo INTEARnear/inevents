@@ -1877,6 +1877,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "num-bigint"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5e44f723f1133c9deac646763579fdb3ac745e418f2a7af9cd0c431da1f20b9"
+dependencies = [
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
 name = "num-bigint-dig"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1926,7 +1936,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "12ac428b1cb17fce6f731001d307d351ec70a6d202fc2e60f7d4c5e42d8f4f07"
 dependencies = [
  "autocfg",
- "num-bigint",
+ "num-bigint 0.3.3",
  "num-integer",
  "num-traits",
  "serde",
@@ -2245,9 +2255,9 @@ dependencies = [
 
 [[package]]
 name = "redis"
-version = "0.25.4"
+version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0d7a6955c7511f60f3ba9e86c6d02b3c3f144f8c24b288d1f4e18074ab8bbec"
+checksum = "e902a69d09078829137b4a5d9d082e0490393537badd7c91a3d69d14639e115f"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -2256,9 +2266,10 @@ dependencies = [
  "futures",
  "futures-util",
  "itoa",
+ "num-bigint 0.4.6",
  "percent-encoding",
  "pin-project-lite",
- "rustls 0.22.4",
+ "rustls 0.23.11",
  "rustls-native-certs",
  "rustls-pemfile",
  "rustls-pki-types",
@@ -2267,7 +2278,7 @@ dependencies = [
  "socket2",
  "tokio",
  "tokio-retry",
- "tokio-rustls 0.25.0",
+ "tokio-rustls 0.26.0",
  "tokio-util",
  "url",
 ]
