@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 dotenvy = "0.15.7"
 log = "0.4.21"
-redis = { version = "0.26.1", features = [ "tokio-rustls-comp", "streams", "connection-manager" ] }
+redis = { version = "0.25.3", features = [ "tokio-rustls-comp", "streams", "connection-manager" ] }
 anyhow = "1.0.86"
 tokio = { version = "1.37.0" }
 serde = "1.0.203"
