@@ -42,8 +42,8 @@ pub struct BlockInfoEventData {
     pub block_hash: CryptoHash,
     #[schemars(with = "String")]
     pub block_producer: AccountId,
-    transaction_count: u64,
-    receipt_count: u64,
+    pub transaction_count: u64,
+    pub receipt_count: u64,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
