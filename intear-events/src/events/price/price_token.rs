@@ -128,7 +128,6 @@ impl DatabaseEventFilter for DbPriceTokenFilter {
             WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
                 AND ($3::TEXT IS NULL OR token = $3)
             ORDER BY timestamp ASC
-            LIMIT $2
             "#,
             pagination.start_block_timestamp_nanosec as i64,
             pagination.blocks as i64,

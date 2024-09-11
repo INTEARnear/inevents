@@ -137,7 +137,6 @@ impl DatabaseEventFilter for DbLogNep297Filter {
                 AND ($6::TEXT IS NULL OR event_version = $6)
                 AND ($7::TEXT IS NULL OR event_event = $7)
             ORDER BY timestamp ASC
-            LIMIT $2
             "#,
             pagination.start_block_timestamp_nanosec as i64,
             pagination.blocks as i64,

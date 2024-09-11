@@ -30,6 +30,7 @@ async fn main() {
         log::{log_nep297::LogNep297Event, log_text::LogTextEvent},
         newcontract::{meme_cooking::NewMemeCookingMemeEvent, nep141::NewContractNep141Event},
         socialdb::index::SocialDBIndexEvent,
+        tps::{block_info::BlockInfoEvent, moretps_claims::MoreTpsClaimEvent},
     };
 
     dotenvy::dotenv().ok();
@@ -72,6 +73,8 @@ async fn main() {
         LogTextEvent,
         LogNep297Event,
         NewMemeCookingMemeEvent,
+        BlockInfoEvent,
+        MoreTpsClaimEvent,
     );
 
     let mut futures = Vec::new();

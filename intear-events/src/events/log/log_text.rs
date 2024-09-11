@@ -51,7 +51,7 @@ pub struct LogTextEventData {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct DbLogNep297Filter {
+pub struct DbLogTextFilter {
     #[schemars(with = "Option<String>")]
     pub account_id: Option<AccountId>,
     #[schemars(with = "Option<String>")]
@@ -63,7 +63,7 @@ pub struct DbLogTextAdapter;
 #[cfg(feature = "impl")]
 impl DatabaseEventAdapter for DbLogTextAdapter {
     type Event = LogTextEvent;
-    type Filter = DbLogNep297Filter;
+    type Filter = DbLogTextFilter;
 
     async fn insert(
         _event: &<Self::Event as Event>::EventData,
@@ -94,7 +94,7 @@ impl DatabaseEventAdapter for DbLogTextAdapter {
 }
 
 #[cfg(feature = "impl")]
-impl DatabaseEventFilter for DbLogNep297Filter {
+impl DatabaseEventFilter for DbLogTextFilter {
     type Event = LogTextEvent;
 
     async fn query_paginated(
@@ -121,7 +121,6 @@ impl DatabaseEventFilter for DbLogNep297Filter {
                 AND ($3::TEXT IS NULL OR account_id = $3)
                 AND ($4::TEXT IS NULL OR predecessor_id = $4)
             ORDER BY timestamp ASC
-            LIMIT $2
             "#,
             pagination.start_block_timestamp_nanosec as i64,
             pagination.blocks as i64,
