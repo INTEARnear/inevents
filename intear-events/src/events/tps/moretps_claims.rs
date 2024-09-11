@@ -80,14 +80,16 @@ impl DatabaseEventAdapter for DbMoreTpsClaimAdapter {
         if testnet {
             sqlx::query!(
                 r#"
-                INSERT INTO moretps_testnet (timestamp, receipt_id, claimed_account_id, claimed_parent_account_id, round_account_id, round_parent_account_id, is_success)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                INSERT INTO moretps_testnet (timestamp, block_height, receipt_id, transaction_id, claimed_account_id, claimed_parent_account_id, round_account_id, round_parent_account_id, is_success)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 "#,
                 chrono::DateTime::from_timestamp(
                     (event.block_timestamp_nanosec / 1_000_000_000) as i64,
                     (event.block_timestamp_nanosec % 1_000_000_000) as u32
                 ),
+                event.block_height as i64,
                 event.receipt_id.to_string(),
+                event.transaction_id.to_string(),
                 event.claimed_account_id.to_string(),
                 event.claimed_parent_account_id.to_string(),
                 event.round_account_id.to_string(),
@@ -99,13 +101,14 @@ impl DatabaseEventAdapter for DbMoreTpsClaimAdapter {
         } else {
             sqlx::query!(
                 r#"
-                INSERT INTO moretps (timestamp, receipt_id, transaction_id, claimed_account_id, claimed_parent_account_id, round_account_id, round_parent_account_id, is_success)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                INSERT INTO moretps (timestamp, block_height, receipt_id, transaction_id, claimed_account_id, claimed_parent_account_id, round_account_id, round_parent_account_id, is_success)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 "#,
                 chrono::DateTime::from_timestamp(
                     (event.block_timestamp_nanosec / 1_000_000_000) as i64,
                     (event.block_timestamp_nanosec % 1_000_000_000) as u32
                 ),
+                event.block_height as i64,
                 event.receipt_id.to_string(),
                 event.transaction_id.to_string(),
                 event.claimed_account_id.to_string(),

@@ -70,13 +70,14 @@ impl DatabaseEventAdapter for DbBlockInfoAdapter {
         if testnet {
             sqlx::query!(
                 r#"
-                INSERT INTO block_info_testnet (timestamp, block_hash, block_producer, transaction_count, receipt_count)
-                VALUES ($1, $2, $3, $4, $5)
+                INSERT INTO block_info_testnet (timestamp, block_height, block_hash, block_producer, transaction_count, receipt_count)
+                VALUES ($1, $2, $3, $4, $5, $6)
                 "#,
                 chrono::DateTime::from_timestamp(
                     (event.block_timestamp_nanosec / 1_000_000_000) as i64,
                     (event.block_timestamp_nanosec % 1_000_000_000) as u32
                 ),
+                event.block_height as i64,
                 event.block_hash.to_string(),
                 event.block_producer.to_string(),
                 event.transaction_count as i64,
@@ -87,13 +88,14 @@ impl DatabaseEventAdapter for DbBlockInfoAdapter {
         } else {
             sqlx::query!(
                 r#"
-                INSERT INTO block_info (timestamp, block_hash, block_producer, transaction_count, receipt_count)
-                VALUES ($1, $2, $3, $4, $5)
+                INSERT INTO block_info (timestamp, block_height, block_hash, block_producer, transaction_count, receipt_count)
+                VALUES ($1, $2, $3, $4, $5, $6)
                 "#,
                 chrono::DateTime::from_timestamp(
                     (event.block_timestamp_nanosec / 1_000_000_000) as i64,
                     (event.block_timestamp_nanosec % 1_000_000_000) as u32
                 ),
+                event.block_height as i64,
                 event.block_hash.to_string(),
                 event.block_producer.to_string(),
                 event.transaction_count as i64,

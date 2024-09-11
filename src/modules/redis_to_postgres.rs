@@ -38,7 +38,7 @@ impl EventModule for RedisToPostgres {
                     .start_reading_events(
                         "redis_to_postgres",
                         |value: serde_json::Value| {
-                            (event.insert_into_postgres)(pg_pool_cloned.clone(), value, true)
+                            (event.insert_into_postgres)(pg_pool_cloned.clone(), value, false)
                         },
                         || cancellation_token_cloned.is_cancelled(),
                     )
@@ -61,7 +61,7 @@ impl EventModule for RedisToPostgres {
                         .start_reading_events(
                             "redis_to_postgres",
                             |value: serde_json::Value| {
-                                (event.insert_into_postgres)(pg_pool_cloned.clone(), value, false)
+                                (event.insert_into_postgres)(pg_pool_cloned.clone(), value, true)
                             },
                             || cancellation_token_cloned.is_cancelled(),
                         )
