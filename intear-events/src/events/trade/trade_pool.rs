@@ -1,6 +1,3 @@
-#[cfg(feature = "impl")]
-use std::str::FromStr;
-
 use inindexer::near_indexer_primitives::types::{AccountId, Balance, BlockHeight};
 use inindexer::near_indexer_primitives::CryptoHash;
 use inindexer::near_utils::dec_format;
@@ -95,8 +92,8 @@ impl DatabaseEventAdapter for DbTradePoolAdapter {
             event.pool.to_string(),
             event.token_in.to_string(),
             event.token_out.to_string(),
-            BigDecimal::from_str(&event.amount_in.to_string()).unwrap(),
-            BigDecimal::from_str(&event.amount_out.to_string()).unwrap(),
+            BigDecimal::from(event.amount_in),
+            BigDecimal::from(event.amount_out),
         ).execute(pool).await
     }
 }
@@ -143,8 +140,14 @@ impl DatabaseEventFilter for DbTradePoolFilter {
             pool: record.pool.parse().unwrap(),
             token_in: record.token_in.parse().unwrap(),
             token_out: record.token_out.parse().unwrap(),
-            amount_in: record.amount_in.to_string().parse().unwrap(),
-            amount_out: record.amount_out.to_string().parse().unwrap(),
+            amount_in: num_traits::ToPrimitive::to_u128(&record.amount_in).unwrap_or_else(|| {
+                log::warn!("Failed to convert number {} to u128 on {}:{}", &record.amount_in, file!(), line!());
+                Default::default()
+            }),
+            amount_out: num_traits::ToPrimitive::to_u128(&record.amount_out).unwrap_or_else(|| {
+                log::warn!("Failed to convert number {} to u128 on {}:{}", &record.amount_out, file!(), line!());
+                Default::default()
+            }),
         })
         .fetch_all(pool)
         .await

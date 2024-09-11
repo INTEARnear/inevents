@@ -1,6 +1,3 @@
-#[cfg(feature = "impl")]
-use std::str::FromStr;
-
 use inindexer::near_indexer_primitives::types::{AccountId, Balance, BlockHeight};
 use inindexer::near_indexer_primitives::CryptoHash;
 use inindexer::near_utils::{dec_format, dec_format_vec};
@@ -96,7 +93,7 @@ impl DatabaseEventAdapter for DbNftTransferAdapter {
             event.new_owner_id.to_string(),
             &event.token_ids,
             event.memo,
-            &event.token_prices_near.iter().map(|price| price.unwrap_or_default()).map(|price| BigDecimal::from_str(&price.to_string()).unwrap()).collect::<Vec<_>>()
+            &event.token_prices_near.iter().map(|price| price.unwrap_or_default()).map(|price| BigDecimal::from(price)).collect::<Vec<_>>()
         ).execute(pool)
         .await
     }
@@ -149,7 +146,10 @@ impl DatabaseEventFilter for DbNftTransferFilter {
             new_owner_id: record.new_owner_id.parse().unwrap(),
             token_ids: record.token_ids,
             memo: record.memo,
-            token_prices_near: record.token_prices_near.iter().map(|price| if price.to_string() == "0" { None } else { Some(price.to_string().parse().unwrap()) }).collect(),
+            token_prices_near: record.token_prices_near.iter().map(|price| if price.to_string() == "0" { None } else { Some(num_traits::ToPrimitive::to_u128(price).unwrap_or_else(|| {
+                log::warn!("Failed to convert number {} to u128 on {}:{}", &price, file!(), line!());
+                Default::default()
+            })) }).collect(),
             transaction_id: record.transaction_id.parse().unwrap(),
             receipt_id: record.receipt_id.parse().unwrap(),
             block_height: record.block_height as u64,

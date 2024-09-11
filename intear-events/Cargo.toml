@@ -26,6 +26,7 @@ sqlx = { version = "0.8.1", features = [
     "bigdecimal",
 ] }
 semver = "1.0.23"
+num-traits = "0.2.14"
 
 [features]
 impl = ["inevents"]

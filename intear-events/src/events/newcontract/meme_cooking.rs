@@ -1,6 +1,3 @@
-#[cfg(feature = "impl")]
-use std::str::FromStr;
-
 use inindexer::near_indexer_primitives::types::{AccountId, Balance, BlockHeight};
 use inindexer::near_indexer_primitives::CryptoHash;
 use inindexer::near_utils::dec_format;
@@ -98,7 +95,7 @@ impl DatabaseEventAdapter for DbNewMemeCookingMemeAdapter {
                 event.name,
                 event.symbol,
                 event.decimals as i32,
-                BigDecimal::from_str(&event.total_supply.to_string()).unwrap(),
+                BigDecimal::from(event.total_supply),
                 event.reference,
                 event.reference_hash,
                 event.deposit_token_id.as_str(),
@@ -119,7 +116,7 @@ impl DatabaseEventAdapter for DbNewMemeCookingMemeAdapter {
                 event.name,
                 event.symbol,
                 event.decimals as i32,
-                BigDecimal::from_str(&event.total_supply.to_string()).unwrap(),
+                BigDecimal::from(event.total_supply),
                 event.reference,
                 event.reference_hash,
                 event.deposit_token_id.as_str(),
@@ -172,7 +169,10 @@ impl DatabaseEventFilter for NewMemeCookingMemeFilter {
                 name: record.name,
                 symbol: record.symbol,
                 decimals: record.decimals as u32,
-                total_supply: record.total_supply.to_string().parse().unwrap(),
+                total_supply: num_traits::ToPrimitive::to_u128(&record.total_supply).unwrap_or_else(|| {
+                log::warn!("Failed to convert number {} to u128 on {}:{}", &record.total_supply, file!(), line!());
+                Default::default()
+            }),
                 reference: record.reference,
                 reference_hash: record.reference_hash,
                 deposit_token_id: record.deposit_token_id.parse().unwrap(),
@@ -213,7 +213,10 @@ impl DatabaseEventFilter for NewMemeCookingMemeFilter {
             name: record.name,
             symbol: record.symbol,
             decimals: record.decimals as u32,
-            total_supply: record.total_supply.to_string().parse().unwrap(),
+            total_supply: num_traits::ToPrimitive::to_u128(&record.total_supply).unwrap_or_else(|| {
+                log::warn!("Failed to convert number {} to u128 on {}:{}", &record.total_supply, file!(), line!());
+                Default::default()
+            }),
             reference: record.reference,
             reference_hash: record.reference_hash,
             deposit_token_id: record.deposit_token_id.parse().unwrap(),

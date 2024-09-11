@@ -1,6 +1,3 @@
-#[cfg(feature = "impl")]
-use std::str::FromStr;
-
 use chrono::{DateTime, Utc};
 use inindexer::near_indexer_primitives::types::{AccountId, Balance, BlockHeight};
 use inindexer::near_indexer_primitives::CryptoHash;
@@ -118,16 +115,16 @@ impl DatabaseEventAdapter for DbPotlockPotProjectDonationAdapter {
             event.donation_id as i64,
             event.pot_id.to_string(),
             event.donor_id.to_string(),
-            BigDecimal::from_str(&event.total_amount.to_string()).unwrap(),
-            BigDecimal::from_str(&event.net_amount.to_string()).unwrap(),
+            BigDecimal::from(event.total_amount),
+            BigDecimal::from(event.net_amount),
             event.message.clone(),
             event.donated_at,
             event.project_id.to_string(),
-            BigDecimal::from_str(&event.protocol_fee.to_string()).unwrap(),
+            BigDecimal::from(event.protocol_fee),
             event.referrer_id.as_ref().map(|id| id.to_string()),
-            event.referrer_fee.map(|fee| BigDecimal::from_str(&fee.to_string()).unwrap()),
+            event.referrer_fee.map(|fee| BigDecimal::from(fee)),
             event.chef_id.as_ref().map(|id| id.to_string()),
-            event.chef_fee.map(|fee| BigDecimal::from_str(&fee.to_string()).unwrap())
+            event.chef_fee.map(|fee| BigDecimal::from(fee))
         ).execute(pool).await
     }
 }
@@ -173,16 +170,31 @@ impl DatabaseEventFilter for DbPotlockPotProjectDonationFilter {
             pot_id: record.pot_id.parse().unwrap(),
             donation_id: record.donation_id as u64,
             donor_id: record.donor_id.parse().unwrap(),
-            total_amount: record.total_amount.to_string().parse().unwrap(),
-            net_amount: record.net_amount.to_string().parse().unwrap(),
+            total_amount: num_traits::ToPrimitive::to_u128(&record.total_amount).unwrap_or_else(|| {
+                log::warn!("Failed to convert number {} to u128 on {}:{}", &record.total_amount, file!(), line!());
+                Default::default()
+            }),
+            net_amount: num_traits::ToPrimitive::to_u128(&record.net_amount).unwrap_or_else(|| {
+                log::warn!("Failed to convert number {} to u128 on {}:{}", &record.net_amount, file!(), line!());
+                Default::default()
+            }),
             message: record.message,
             donated_at: record.donated_at,
             project_id: record.project_id.parse().unwrap(),
-            protocol_fee: record.protocol_fee.to_string().parse().unwrap(),
+            protocol_fee: num_traits::ToPrimitive::to_u128(&record.protocol_fee).unwrap_or_else(|| {
+                log::warn!("Failed to convert number {} to u128 on {}:{}", &record.protocol_fee, file!(), line!());
+                Default::default()
+            }),
             referrer_id: record.referrer_id.as_ref().map(|id| id.parse().unwrap()),
-            referrer_fee: record.referrer_fee.map(|fee| fee.to_string().parse().unwrap()),
+            referrer_fee: record.referrer_fee.map(|fee| num_traits::ToPrimitive::to_u128(&fee).unwrap_or_else(|| {
+                log::warn!("Failed to convert number {} to u128 on {}:{}", &fee, file!(), line!());
+                Default::default()
+            })),
             chef_id: record.chef_id.as_ref().map(|id| id.parse().unwrap()),
-            chef_fee: record.chef_fee.map(|fee| fee.to_string().parse().unwrap()),
+            chef_fee: record.chef_fee.map(|fee| num_traits::ToPrimitive::to_u128(&fee).unwrap_or_else(|| {
+                log::warn!("Failed to convert number {} to u128 on {}:{}", &fee, file!(), line!());
+                Default::default()
+            })),
             transaction_id: record.transaction_id.parse().unwrap(),
             receipt_id: record.receipt_id.parse().unwrap(),
             block_height: record.block_height as u64,

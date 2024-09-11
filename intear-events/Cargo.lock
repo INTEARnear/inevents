@@ -1530,6 +1530,7 @@ dependencies = [
  "inevents-redis",
  "inindexer",
  "log",
+ "num-traits",
  "schemars",
  "semver",
  "serde",
