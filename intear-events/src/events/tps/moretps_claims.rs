@@ -41,6 +41,8 @@ pub struct MoreTpsClaimEventData {
     #[schemars(with = "String")]
     pub receipt_id: CryptoHash,
     #[schemars(with = "String")]
+    pub transaction_id: CryptoHash,
+    #[schemars(with = "String")]
     pub claimed_account_id: AccountId,
     #[schemars(with = "String")]
     pub claimed_parent_account_id: AccountId,
@@ -97,14 +99,15 @@ impl DatabaseEventAdapter for DbMoreTpsClaimAdapter {
         } else {
             sqlx::query!(
                 r#"
-                INSERT INTO moretps (timestamp, receipt_id, claimed_account_id, claimed_parent_account_id, round_account_id, round_parent_account_id, is_success)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                INSERT INTO moretps (timestamp, receipt_id, transaction_id, claimed_account_id, claimed_parent_account_id, round_account_id, round_parent_account_id, is_success)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 "#,
                 chrono::DateTime::from_timestamp(
                     (event.block_timestamp_nanosec / 1_000_000_000) as i64,
                     (event.block_timestamp_nanosec % 1_000_000_000) as u32
                 ),
                 event.receipt_id.to_string(),
+                event.transaction_id.to_string(),
                 event.claimed_account_id.to_string(),
                 event.claimed_parent_account_id.to_string(),
                 event.round_account_id.to_string(),
@@ -141,7 +144,7 @@ impl DatabaseEventFilter for DbMoreTpsClaimFilter {
                     ORDER BY t
                     LIMIT $2
                 )
-                SELECT timestamp, block_height, receipt_id, claimed_account_id, claimed_parent_account_id, round_account_id, round_parent_account_id, is_success
+                SELECT timestamp, block_height, receipt_id, transaction_id, claimed_account_id, claimed_parent_account_id, round_account_id, round_parent_account_id, is_success
                 FROM moretps_testnet
                 WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
                     AND ($3::TEXT IS NULL OR claimed_account_id = $3)
@@ -161,6 +164,7 @@ impl DatabaseEventFilter for DbMoreTpsClaimFilter {
                 block_height: record.block_height as u64,
                 block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
                 receipt_id: record.receipt_id.parse().unwrap(),
+                transaction_id: record.transaction_id.parse().unwrap(),
                 claimed_account_id: record.claimed_account_id.parse().unwrap(),
                 claimed_parent_account_id: record.claimed_parent_account_id.parse().unwrap(),
                 round_account_id: record.round_account_id.parse().unwrap(),
@@ -183,7 +187,7 @@ impl DatabaseEventFilter for DbMoreTpsClaimFilter {
                     ORDER BY t
                     LIMIT $2
                 )
-                SELECT timestamp, block_height, receipt_id, claimed_account_id, claimed_parent_account_id, round_account_id, round_parent_account_id, is_success
+                SELECT timestamp, block_height, receipt_id, transaction_id, claimed_account_id, claimed_parent_account_id, round_account_id, round_parent_account_id, is_success
                 FROM moretps
                 WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
                     AND ($3::TEXT IS NULL OR claimed_account_id = $3)
@@ -203,6 +207,7 @@ impl DatabaseEventFilter for DbMoreTpsClaimFilter {
                 block_height: record.block_height as u64,
                 block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
                 receipt_id: record.receipt_id.parse().unwrap(),
+                transaction_id: record.transaction_id.parse().unwrap(),
                 claimed_account_id: record.claimed_account_id.parse().unwrap(),
                 claimed_parent_account_id: record.claimed_parent_account_id.parse().unwrap(),
                 round_account_id: record.round_account_id.parse().unwrap(),
