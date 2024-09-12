@@ -32,8 +32,6 @@ use intear_events::events::{
 #[cfg(feature = "impl")]
 #[tokio::main]
 async fn main() {
-    let current_tokio_runtime = tokio::runtime::Handle::current();
-    println!("Current tokio runtime: {:?}", current_tokio_runtime);
     dotenvy::dotenv().ok();
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Info)
