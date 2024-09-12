@@ -1,3 +1,5 @@
+// Actix needs a single-threaded context, but we don't want that, so we're running 2 tokio runtimes in parallel.
+
 use std::{
     collections::HashMap,
     fs::File,
@@ -22,7 +24,7 @@ use async_trait::async_trait;
 use dashmap::DashSet;
 use inevents_redis::RedisEventStream;
 use redis::aio::ConnectionManager;
-use tokio::task::JoinHandle;
+use tokio::{sync::OnceCell, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 
 // EventWebSocket is the client, Server is the server.
@@ -49,33 +51,46 @@ impl WebsocketServer {
 #[async_trait]
 impl EventModule for WebsocketServer {
     async fn start<E: EventCollection>(self) -> anyhow::Result<()> {
-        let redis_connection = create_connection(
-            &std::env::var("REDIS_URL").expect("REDIS_URL enviroment variable not set"),
-        )
-        .await;
+        let cancellation_token = CancellationToken::new();
+        let server_addr = Arc::new(OnceCell::new());
 
-        let server = Server {
-            sockets: HashMap::from_iter(
-                E::events()
-                    .into_iter()
-                    .map(|event| ((event.event_identifier, false), Arc::new(DashSet::new())))
-                    .chain(
+        let server_addr_clone = Arc::clone(&server_addr);
+        let cancellation_token_clone = cancellation_token.clone();
+        tokio::task::spawn_blocking(|| {
+            actix::run(async move {
+                let server = Server {
+                    sockets: HashMap::from_iter(
                         E::events()
                             .into_iter()
-                            .filter(|event| event.supports_testnet)
                             .map(|event| {
-                                ((event.event_identifier, true), Arc::new(DashSet::new()))
-                            }),
+                                ((event.event_identifier, false), Arc::new(DashSet::new()))
+                            })
+                            .chain(
+                                E::events()
+                                    .into_iter()
+                                    .filter(|event| event.supports_testnet)
+                                    .map(|event| {
+                                        ((event.event_identifier, true), Arc::new(DashSet::new()))
+                                    }),
+                            ),
                     ),
-            ),
-        };
-        let server_addr = server.start();
+                };
+                server_addr_clone.set(server.start()).unwrap();
+                while !cancellation_token_clone.is_cancelled() {
+                    tokio::task::yield_now().await;
+                }
+            })
+            .expect("Failed to run Websocket server")
+        });
 
-        let cancellation_token = CancellationToken::new();
+        while server_addr.get().is_none() {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        let server_addr = server_addr.get().unwrap().clone();
+
         let mut join_handles = Vec::new();
         for event in E::events() {
             join_handles.push(launch_event_stream(
-                redis_connection.clone(),
                 event,
                 server_addr.clone(),
                 cancellation_token.clone(),
@@ -87,7 +102,6 @@ impl EventModule for WebsocketServer {
             .filter(|event| event.supports_testnet)
         {
             join_handles.push(launch_event_stream(
-                redis_connection.clone(),
                 event,
                 server_addr.clone(),
                 cancellation_token.clone(),
@@ -153,17 +167,21 @@ impl EventModule for WebsocketServer {
         });
 
         let server = if let Some(tls_config) = tls_config {
-            server.bind_rustls_0_22(
-                std::env::var("WEBSOCKET_BIND_ADDRESS").unwrap_or("0.0.0.0:3000".to_string()),
-                tls_config,
-            )?
+            server
+                .bind_rustls_0_22(
+                    std::env::var("WEBSOCKET_BIND_ADDRESS").unwrap_or("0.0.0.0:3000".to_string()),
+                    tls_config,
+                )
+                .expect("Failed to bind to address with TLS")
         } else {
-            server.bind(
-                std::env::var("WEBSOCKET_BIND_ADDRESS").unwrap_or("0.0.0.0:3000".to_string()),
-            )?
+            server
+                .bind(std::env::var("WEBSOCKET_BIND_ADDRESS").unwrap_or("0.0.0.0:3000".to_string()))
+                .expect("Failed to bind to address")
         };
 
-        server.run().await?;
+        if let Err(err) = server.run().await {
+            log::error!("Failed to start websocket server: {err:?}");
+        }
 
         log::info!("Websocket server stopped. Stopping event readers");
 
@@ -338,7 +356,6 @@ fn create_route(event: RawEvent, testnet: bool) -> impl HttpServiceFactory {
 }
 
 fn launch_event_stream(
-    redis_connection: ConnectionManager,
     raw_event: RawEvent,
     server: Addr<Server>,
     cancellation_token: CancellationToken,
@@ -346,7 +363,10 @@ fn launch_event_stream(
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         let mut stream = RedisEventStream::new(
-            redis_connection,
+            create_connection(
+                &std::env::var("REDIS_URL").expect("REDIS_URL enviroment variable not set"),
+            )
+            .await,
             if testnet {
                 format!("{}_testnet", raw_event.event_identifier)
             } else {

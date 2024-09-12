@@ -27,6 +27,7 @@ sqlx = { version = "0.8.1", features = [
 ] }
 semver = "1.0.23"
 num-traits = "0.2.14"
+tokio = { version = "1.40.0", features = ["rt-multi-thread", "macros"] }
 
 [features]
 impl = ["inevents"]

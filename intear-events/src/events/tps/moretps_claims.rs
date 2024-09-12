@@ -149,6 +149,7 @@ impl DatabaseEventFilter for DbMoreTpsClaimFilter {
                 )
                 SELECT timestamp, block_height, receipt_id, transaction_id, claimed_account_id, claimed_parent_account_id, round_account_id, round_parent_account_id, is_success
                 FROM moretps_testnet
+                INNER JOIN blocks ON timestamp = blocks.t
                 WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
                     AND ($3::TEXT IS NULL OR claimed_account_id = $3)
                     AND ($4::TEXT IS NULL OR claimed_parent_account_id = $4)
@@ -192,6 +193,7 @@ impl DatabaseEventFilter for DbMoreTpsClaimFilter {
                 )
                 SELECT timestamp, block_height, receipt_id, transaction_id, claimed_account_id, claimed_parent_account_id, round_account_id, round_parent_account_id, is_success
                 FROM moretps
+                INNER JOIN blocks ON timestamp = blocks.t
                 WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
                     AND ($3::TEXT IS NULL OR claimed_account_id = $3)
                     AND ($4::TEXT IS NULL OR claimed_parent_account_id = $4)

@@ -54,6 +54,7 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
             }
             let events = self.read_event(&last_id).await?;
             if events.is_empty() {
+                tokio::task::yield_now().await;
                 continue;
             }
             for (id, event) in events {
@@ -94,10 +95,7 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
                         .collect::<Vec<_>>()
                 })
                 .collect()),
-            None => {
-                tokio::task::yield_now().await;
-                Ok(vec![])
-            }
+            None => Ok(vec![]),
         }
     }
 

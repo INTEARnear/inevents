@@ -22,17 +22,18 @@ use inevents::{
         websocket_server::WebsocketServer, EventModule,
     },
 };
+use intear_events::events::{
+    log::{log_nep297::LogNep297Event, log_text::LogTextEvent},
+    newcontract::{meme_cooking::NewMemeCookingMemeEvent, nep141::NewContractNep141Event},
+    socialdb::index::SocialDBIndexEvent,
+    tps::{block_info::BlockInfoEvent, moretps_claims::MoreTpsClaimEvent},
+};
 
 #[cfg(feature = "impl")]
-#[actix::main]
+#[tokio::main]
 async fn main() {
-    use intear_events::events::{
-        log::{log_nep297::LogNep297Event, log_text::LogTextEvent},
-        newcontract::{meme_cooking::NewMemeCookingMemeEvent, nep141::NewContractNep141Event},
-        socialdb::index::SocialDBIndexEvent,
-        tps::{block_info::BlockInfoEvent, moretps_claims::MoreTpsClaimEvent},
-    };
-
+    let current_tokio_runtime = tokio::runtime::Handle::current();
+    println!("Current tokio runtime: {:?}", current_tokio_runtime);
     dotenvy::dotenv().ok();
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Info)

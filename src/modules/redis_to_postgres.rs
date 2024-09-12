@@ -12,10 +12,6 @@ pub struct RedisToPostgres;
 #[async_trait]
 impl EventModule for RedisToPostgres {
     async fn start<E: EventCollection>(self) -> anyhow::Result<()> {
-        let redis_connection = create_connection(
-            &std::env::var("REDIS_URL").expect("REDIS_URL enviroment variable not set"),
-        )
-        .await;
         let pg_pool = PgPool::connect(
             &std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable must be set"),
         )
@@ -29,11 +25,15 @@ impl EventModule for RedisToPostgres {
                 continue;
             }
             let pg_pool_cloned = pg_pool.clone();
-            let redis_connection_cloned = redis_connection.clone();
             let cancellation_token_cloned = cancellation_token.clone();
             tasks.push(tokio::spawn(async move {
-                let mut stream =
-                    RedisEventStream::new(redis_connection_cloned, event.event_identifier);
+                let mut stream = RedisEventStream::new(
+                    create_connection(
+                        &std::env::var("REDIS_URL").expect("REDIS_URL enviroment variable not set"),
+                    )
+                    .await,
+                    event.event_identifier,
+                );
                 while let Err(err) = stream
                     .start_reading_events(
                         "redis_to_postgres",
@@ -49,12 +49,15 @@ impl EventModule for RedisToPostgres {
                 }
             }));
             if event.supports_testnet {
-                let redis_connection_cloned = redis_connection.clone();
                 let pg_pool_cloned = pg_pool.clone();
                 let cancellation_token_cloned = cancellation_token.clone();
                 tasks.push(tokio::spawn(async move {
                     let mut stream = RedisEventStream::new(
-                        redis_connection_cloned,
+                        create_connection(
+                            &std::env::var("REDIS_URL")
+                                .expect("REDIS_URL enviroment variable not set"),
+                        )
+                        .await,
                         format!("{}_testnet", event.event_identifier),
                     );
                     while let Err(err) = stream
