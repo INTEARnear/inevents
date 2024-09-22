@@ -26,6 +26,7 @@ impl Event for TradePoolChangeEvent {
     const ID: &'static str = Self::ID;
     const DESCRIPTION: Option<&'static str> = Some("Fired when a DEX pool changes. For example, when someone exchanges tokens, adds or removes liquidity, or when fee is changed. The behavior is different for each pool, but it's pretty much guaranteed that 2 consecutive events will have different data.");
     const CATEGORY: &'static str = "Trade";
+    const SUPPORTS_TESTNET: bool = true;
 
     type EventData = TradePoolChangeEventData;
     type RealtimeEventFilter = RtTradePoolChangeilter;
@@ -70,24 +71,43 @@ impl DatabaseEventAdapter for DbTradePoolChangeAdapter {
     async fn insert(
         event: &<Self::Event as Event>::EventData,
         pool: &Pool<Postgres>,
-        _testnet: bool,
+        testnet: bool,
     ) -> Result<PgQueryResult, sqlx::Error> {
-        sqlx::query!(
-            r#"
-            INSERT INTO trade_pool_change (timestamp, receipt_id, block_height, pool_id, pool)
-            VALUES ($1, $2, $3, $4, $5)
-            "#,
-            chrono::DateTime::from_timestamp(
-                (event.block_timestamp_nanosec / 1_000_000_000) as i64,
-                (event.block_timestamp_nanosec % 1_000_000_000) as u32
-            ),
-            event.receipt_id.to_string(),
-            event.block_height as i64,
-            event.pool_id,
-            serde_json::to_value(&event.pool).unwrap(),
-        )
-        .execute(pool)
-        .await
+        if testnet {
+            sqlx::query!(
+                r#"
+                INSERT INTO trade_pool_change_testnet (timestamp, receipt_id, block_height, pool_id, pool)
+                VALUES ($1, $2, $3, $4, $5)
+                "#,
+                chrono::DateTime::from_timestamp(
+                    (event.block_timestamp_nanosec / 1_000_000_000) as i64,
+                    (event.block_timestamp_nanosec % 1_000_000_000) as u32
+                ),
+                event.receipt_id.to_string(),
+                event.block_height as i64,
+                event.pool_id,
+                serde_json::to_value(&event.pool).unwrap(),
+            )
+            .execute(pool)
+            .await
+        } else {
+            sqlx::query!(
+                r#"
+                INSERT INTO trade_pool_change (timestamp, receipt_id, block_height, pool_id, pool)
+                VALUES ($1, $2, $3, $4, $5)
+                "#,
+                chrono::DateTime::from_timestamp(
+                    (event.block_timestamp_nanosec / 1_000_000_000) as i64,
+                    (event.block_timestamp_nanosec % 1_000_000_000) as u32
+                ),
+                event.receipt_id.to_string(),
+                event.block_height as i64,
+                event.pool_id,
+                serde_json::to_value(&event.pool).unwrap(),
+            )
+            .execute(pool)
+            .await
+        }
     }
 }
 
@@ -99,37 +119,69 @@ impl DatabaseEventFilter for DbTradePoolChangeFilter {
         &self,
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
-        _testnet: bool,
+        testnet: bool,
     ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
-        sqlx::query!(
-            r#"
-            WITH blocks AS (
-                SELECT DISTINCT timestamp as t
-                FROM trade_pool_change
-                WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                    AND ($3::TEXT IS NULL OR pool_id = $3)
-                ORDER BY t
-                LIMIT $2
+        if testnet {
+            sqlx::query!(
+                r#"
+                WITH blocks AS (
+                    SELECT DISTINCT timestamp as t
+                    FROM trade_pool_change_testnet
+                    WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
+                        AND ($3::TEXT IS NULL OR pool_id = $3)
+                    ORDER BY t
+                    LIMIT $2
+                )
+                SELECT receipt_id, block_height, timestamp, pool_id, pool
+                FROM trade_pool_change_testnet
+                INNER JOIN blocks ON timestamp = blocks.t
+                WHERE ($3::TEXT IS NULL OR pool_id = $3)
+                ORDER BY timestamp ASC
+                "#,
+                pagination.start_block_timestamp_nanosec as i64,
+                pagination.blocks as i64,
+                self.pool_id.as_ref()
             )
-            SELECT receipt_id, block_height, timestamp, pool_id, pool
-            FROM trade_pool_change
-            INNER JOIN blocks ON timestamp = blocks.t
-            WHERE ($3::TEXT IS NULL OR pool_id = $3)
-            ORDER BY timestamp ASC
-            "#,
-            pagination.start_block_timestamp_nanosec as i64,
-            pagination.blocks as i64,
-            self.pool_id.as_ref()
-        )
-        .map(|record| TradePoolChangeEventData {
-            pool_id: record.pool_id,
-            receipt_id: record.receipt_id.parse().unwrap(),
-            block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-            block_height: record.block_height as BlockHeight,
-            pool: serde_json::from_value(record.pool).unwrap(),
-        })
-        .fetch_all(pool)
-        .await
+            .map(|record| TradePoolChangeEventData {
+                pool_id: record.pool_id,
+                receipt_id: record.receipt_id.parse().unwrap(),
+                block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
+                block_height: record.block_height as BlockHeight,
+                pool: serde_json::from_value(record.pool).unwrap(),
+            })
+            .fetch_all(pool)
+            .await
+        } else {
+            sqlx::query!(
+                r#"
+                WITH blocks AS (
+                    SELECT DISTINCT timestamp as t
+                    FROM trade_pool_change
+                    WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
+                        AND ($3::TEXT IS NULL OR pool_id = $3)
+                    ORDER BY t
+                    LIMIT $2
+                )
+                SELECT receipt_id, block_height, timestamp, pool_id, pool
+                FROM trade_pool_change
+                INNER JOIN blocks ON timestamp = blocks.t
+                WHERE ($3::TEXT IS NULL OR pool_id = $3)
+                ORDER BY timestamp ASC
+                "#,
+                pagination.start_block_timestamp_nanosec as i64,
+                pagination.blocks as i64,
+                self.pool_id.as_ref()
+            )
+            .map(|record| TradePoolChangeEventData {
+                pool_id: record.pool_id,
+                receipt_id: record.receipt_id.parse().unwrap(),
+                block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
+                block_height: record.block_height as BlockHeight,
+                pool: serde_json::from_value(record.pool).unwrap(),
+            })
+            .fetch_all(pool)
+            .await
+        }
     }
 }
 
