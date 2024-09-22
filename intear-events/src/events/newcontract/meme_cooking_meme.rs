@@ -181,48 +181,48 @@ impl DatabaseEventFilter for NewMemeCookingMemeFilter {
             .await
         } else {
             sqlx::query!(
-            r#"
-            WITH blocks AS (
-                SELECT DISTINCT timestamp as t
+                r#"
+                WITH blocks AS (
+                    SELECT DISTINCT timestamp as t
+                    FROM new_memecooking_meme
+                    WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
+                        AND ($3::BIGINT IS NULL OR meme_id = $3)
+                        AND ($4::TEXT IS NULL OR owner = $4)
+                    ORDER BY t
+                    LIMIT $2
+                )
+                SELECT transaction_id, receipt_id, block_height, timestamp, meme_id, owner, end_timestamp_ms, name, symbol, decimals, total_supply, reference, reference_hash, deposit_token_id
                 FROM new_memecooking_meme
-                WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                    AND ($3::BIGINT IS NULL OR meme_id = $3)
+                INNER JOIN blocks ON timestamp = blocks.t
+                WHERE ($3::BIGINT IS NULL OR meme_id = $3)
                     AND ($4::TEXT IS NULL OR owner = $4)
-                ORDER BY t
-                LIMIT $2
-            )
-            SELECT transaction_id, receipt_id, block_height, timestamp, meme_id, owner, end_timestamp_ms, name, symbol, decimals, total_supply, reference, reference_hash, deposit_token_id
-            FROM new_memecooking_meme
-            INNER JOIN blocks ON timestamp = blocks.t
-            WHERE ($3::BIGINT IS NULL OR meme_id = $3)
-                AND ($4::TEXT IS NULL OR owner = $4)
-            ORDER BY timestamp ASC
-            "#,
-            pagination.start_block_timestamp_nanosec as i64,
-            pagination.blocks as i64,
-            self.meme_id.map(|id| id as i64),
-            self.owner.as_ref().map(|id| id.as_str()),
-        ).map(|record| NewMemeCookingMemeEventData {
-            transaction_id: record.transaction_id.parse().unwrap(),
-            receipt_id: record.receipt_id.parse().unwrap(),
-            block_height: record.block_height as u64,
-            block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-            meme_id: record.meme_id as u64,
-            owner: record.owner.parse().unwrap(),
-            end_timestamp_ms: record.end_timestamp_ms as u64,
-            name: record.name,
-            symbol: record.symbol,
-            decimals: record.decimals as u32,
-            total_supply: num_traits::ToPrimitive::to_u128(&record.total_supply).unwrap_or_else(|| {
-                log::warn!("Failed to convert number {} to u128 on {}:{}", &record.total_supply, file!(), line!());
-                Default::default()
-            }),
-            reference: record.reference,
-            reference_hash: record.reference_hash,
-            deposit_token_id: record.deposit_token_id.parse().unwrap(),
-        })
-        .fetch_all(pool)
-        .await
+                ORDER BY timestamp ASC
+                "#,
+                pagination.start_block_timestamp_nanosec as i64,
+                pagination.blocks as i64,
+                self.meme_id.map(|id| id as i64),
+                self.owner.as_ref().map(|id| id.as_str()),
+            ).map(|record| NewMemeCookingMemeEventData {
+                transaction_id: record.transaction_id.parse().unwrap(),
+                receipt_id: record.receipt_id.parse().unwrap(),
+                block_height: record.block_height as u64,
+                block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
+                meme_id: record.meme_id as u64,
+                owner: record.owner.parse().unwrap(),
+                end_timestamp_ms: record.end_timestamp_ms as u64,
+                name: record.name,
+                symbol: record.symbol,
+                decimals: record.decimals as u32,
+                total_supply: num_traits::ToPrimitive::to_u128(&record.total_supply).unwrap_or_else(|| {
+                    log::warn!("Failed to convert number {} to u128 on {}:{}", &record.total_supply, file!(), line!());
+                    Default::default()
+                }),
+                reference: record.reference,
+                reference_hash: record.reference_hash,
+                deposit_token_id: record.deposit_token_id.parse().unwrap(),
+            })
+            .fetch_all(pool)
+            .await
         }
     }
 }

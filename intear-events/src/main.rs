@@ -24,7 +24,7 @@ use inevents::{
 };
 use intear_events::events::{
     log::{log_nep297::LogNep297Event, log_text::LogTextEvent},
-    newcontract::{meme_cooking::NewMemeCookingMemeEvent, nep141::NewContractNep141Event},
+    newcontract::{meme_cooking_meme::NewMemeCookingMemeEvent, nep141::NewContractNep141Event},
     socialdb::index::SocialDBIndexEvent,
     tps::{block_info::BlockInfoEvent, moretps_claims::MoreTpsClaimEvent},
 };
@@ -32,6 +32,10 @@ use intear_events::events::{
 #[cfg(feature = "impl")]
 #[tokio::main]
 async fn main() {
+    use intear_events::events::newcontract::meme_cooking_token::NewMemeCookingTokenEvent;
+    use intear_events::events::trade::memecooking_deposit::MemeCookingDepositEvent;
+    use intear_events::events::trade::memecooking_withdraw::MemeCookingWithdrawEvent;
+
     dotenvy::dotenv().ok();
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Info)
@@ -74,6 +78,9 @@ async fn main() {
         NewMemeCookingMemeEvent,
         BlockInfoEvent,
         MoreTpsClaimEvent,
+        MemeCookingDepositEvent,
+        MemeCookingWithdrawEvent,
+        NewMemeCookingTokenEvent,
     );
 
     let mut futures = Vec::new();
