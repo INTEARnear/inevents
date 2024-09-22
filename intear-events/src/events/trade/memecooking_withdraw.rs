@@ -15,8 +15,6 @@ use inevents::events::event::{
     DatabaseEventAdapter, DatabaseEventFilter, Event, PaginationParameters, RealtimeEventFilter,
 };
 
-type MemeId = i64;
-
 pub struct MemeCookingWithdrawEvent;
 
 impl MemeCookingWithdrawEvent {
@@ -38,7 +36,7 @@ impl Event for MemeCookingWithdrawEvent {
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct MemeCookingWithdrawEventData {
-    pub meme_id: MemeId,
+    pub meme_id: u64,
     #[schemars(with = "String")]
     pub trader: AccountId,
     #[schemars(with = "String")]
@@ -59,7 +57,7 @@ pub struct MemeCookingWithdrawEventData {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct DbMemeCookingWithdrawFilter {
-    pub meme_id: Option<MemeId>,
+    pub meme_id: Option<u64>,
     #[schemars(with = "Option<String>")]
     pub trader_account_id: Option<AccountId>,
 }
@@ -87,7 +85,7 @@ impl DatabaseEventAdapter for DbMemeCookingWithdrawAdapter {
                 event.receipt_id.to_string(),
                 event.block_height as i64,
                 event.trader.to_string(),
-                event.meme_id,
+                event.meme_id as i64,
                 BigDecimal::from(event.amount),
                 BigDecimal::from(event.fee),
             ).execute(pool).await
@@ -102,7 +100,7 @@ impl DatabaseEventAdapter for DbMemeCookingWithdrawAdapter {
                 event.receipt_id.to_string(),
                 event.block_height as i64,
                 event.trader.to_string(),
-                event.meme_id,
+                event.meme_id as i64,
                 BigDecimal::from(event.amount),
                 BigDecimal::from(event.fee),
             ).execute(pool).await
@@ -142,7 +140,7 @@ impl DatabaseEventFilter for DbMemeCookingWithdrawFilter {
                 pagination.start_block_timestamp_nanosec as i64,
                 pagination.blocks as i64,
                 self.trader_account_id.as_ref().map(|id| id.to_string()),
-                self.meme_id,
+                self.meme_id.map(|id| id as i64),
             )
             .map(|record| MemeCookingWithdrawEventData {
                 trader: record.trader.parse().unwrap(),
@@ -150,7 +148,7 @@ impl DatabaseEventFilter for DbMemeCookingWithdrawFilter {
                 receipt_id: record.receipt_id.parse().unwrap(),
                 block_height: record.block_height as u64,
                 block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-                meme_id: record.meme_id,
+                meme_id: record.meme_id as u64,
                 amount: num_traits::ToPrimitive::to_u128(&record.amount).unwrap_or_else(|| {
                     log::warn!("Failed to convert number {} to u128 on {}:{}", &record.amount, file!(), line!());
                     Default::default()
@@ -184,7 +182,7 @@ impl DatabaseEventFilter for DbMemeCookingWithdrawFilter {
                 pagination.start_block_timestamp_nanosec as i64,
                 pagination.blocks as i64,
                 self.trader_account_id.as_ref().map(|id| id.to_string()),
-                self.meme_id,
+                self.meme_id.map(|id| id as i64),
             )
             .map(|record| MemeCookingWithdrawEventData {
                 trader: record.trader.parse().unwrap(),
@@ -192,7 +190,7 @@ impl DatabaseEventFilter for DbMemeCookingWithdrawFilter {
                 receipt_id: record.receipt_id.parse().unwrap(),
                 block_height: record.block_height as u64,
                 block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-                meme_id: record.meme_id,
+                meme_id: record.meme_id as u64,
                 amount: num_traits::ToPrimitive::to_u128(&record.amount).unwrap_or_else(|| {
                     log::warn!("Failed to convert number {} to u128 on {}:{}", &record.amount, file!(), line!());
                     Default::default()
@@ -210,7 +208,7 @@ impl DatabaseEventFilter for DbMemeCookingWithdrawFilter {
 
 #[derive(Debug, Deserialize)]
 pub struct RtMemeCookingWithdrawFilter {
-    pub meme_id: Option<MemeId>,
+    pub meme_id: Option<u64>,
     pub trader_account_id: Option<AccountId>,
 }
 
