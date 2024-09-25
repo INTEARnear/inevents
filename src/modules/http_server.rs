@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use std::rc::Rc;
 use std::{
     collections::HashSet,
     fmt::{self, Display, Formatter},
@@ -10,6 +12,7 @@ use crate::events::event::{PaginationParameters, MAX_BLOCKS_PER_REQUEST};
 
 use super::{EventCollection, EventModule, RawEvent};
 use actix_cors::Cors;
+use actix_web::HttpResponseBuilder;
 use actix_web::{
     dev::HttpServiceFactory,
     http::{
@@ -129,7 +132,7 @@ impl EventModule for HttpServer {
 
             let openapi = create_openapi_spec::<E>(false);
             let openapi_testnet = create_openapi_spec::<E>(true);
-            let mut api = web::scope("/query").service(
+            let mut query = web::scope("/query").service(
                 web::scope("swagger-ui").service(
                     SwaggerUi::new("/{_:.*}")
                         .url("/swagger.json", openapi)
@@ -143,10 +146,10 @@ impl EventModule for HttpServer {
                 if event.excluded_from_database {
                     continue;
                 }
-                api = api.service(create_route(event, false));
+                query = query.service(create_route(event, false));
             }
 
-            let mut api_testnet = web::scope("/query-testnet").service(
+            let mut query_testnet = web::scope("/query-testnet").service(
                 web::scope("swagger-ui").service(
                     SwaggerUi::new("/{_:.*}")
                         .url("/swagger.json", openapi_testnet)
@@ -161,7 +164,53 @@ impl EventModule for HttpServer {
                     continue;
                 }
                 if event.supports_testnet {
-                    api_testnet = api_testnet.service(create_route(event, true));
+                    query_testnet = query_testnet.service(create_route(event, true));
+                }
+            }
+
+            let mut api = web::scope("/api");
+            for event in E::events() {
+                if event.excluded_from_database {
+                    continue;
+                }
+                for custom_route in (event.get_custom_endpoints)(pg_pool.clone()) {
+                    let custom_route = Rc::new(custom_route);
+                    api = api.service(web::resource(custom_route.name()).route(web::get().to(
+                        move |query: web::Query<HashMap<String, String>>| {
+                            let custom_route = Rc::clone(&custom_route);
+                            let query = query.into_inner();
+                            async move {
+                                let (status, body) = custom_route
+                                    .handle(query, false)
+                                    .await
+                                    .expect("Failed to handle custom route");
+                                HttpResponseBuilder::new(status).json(body)
+                            }
+                        },
+                    )));
+                }
+            }
+
+            let mut api_testnet = web::scope("/api-testnet");
+            for event in E::events() {
+                if event.excluded_from_database {
+                    continue;
+                }
+                for custom_route in (event.get_custom_endpoints)(pg_pool.clone()) {
+                    let custom_route = Rc::new(custom_route);
+                    api_testnet = api_testnet.service(web::resource(custom_route.name()).route(
+                        web::get().to(move |query: web::Query<HashMap<String, String>>| {
+                            let custom_route = Rc::clone(&custom_route);
+                            let query = query.into_inner();
+                            async move {
+                                let (status, body) = custom_route
+                                    .handle(query, true)
+                                    .await
+                                    .expect("Failed to handle custom route");
+                                HttpResponseBuilder::new(status).json(body)
+                            }
+                        }),
+                    ));
                 }
             }
 
@@ -171,6 +220,8 @@ impl EventModule for HttpServer {
 
             let mut app = App::new()
                 .app_data(web::Data::new(state))
+                .service(query)
+                .service(query_testnet)
                 .service(api)
                 .service(api_testnet);
 

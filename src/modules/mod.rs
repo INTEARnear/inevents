@@ -10,7 +10,7 @@ use http_server::AppError;
 use schemars::schema::RootSchema;
 use sqlx::{PgPool, Pool, Postgres};
 
-use crate::events::event::PaginationParameters;
+use crate::events::event::{CustomHttpEndpoint, PaginationParameters};
 
 #[async_trait]
 pub trait EventModule {
@@ -43,4 +43,5 @@ pub struct RawEvent {
     pub db_filter_schema: RootSchema,
     pub excluded_from_database: bool,
     pub supports_testnet: bool,
+    pub get_custom_endpoints: fn(Pool<Postgres>) -> Vec<Box<dyn CustomHttpEndpoint>>,
 }

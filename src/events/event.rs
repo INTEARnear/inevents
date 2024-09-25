@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::future::Future;
 
+use actix_web::http::StatusCode;
 use near_indexer_primitives::types::BlockHeightDelta;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -15,6 +17,20 @@ pub trait Event {
     type EventData: Serialize + for<'de> Deserialize<'de> + JsonSchema;
     type RealtimeEventFilter: RealtimeEventFilter<Event = Self>;
     type DatabaseAdapter: DatabaseEventAdapter<Event = Self>;
+
+    fn custom_http_endpoints(_pool: Pool<Postgres>) -> Vec<Box<dyn CustomHttpEndpoint>> {
+        vec![]
+    }
+}
+
+pub trait CustomHttpEndpoint {
+    fn name(&self) -> &'static str;
+
+    fn handle(
+        &self,
+        query: HashMap<String, String>,
+        testnet: bool,
+    ) -> tokio::task::JoinHandle<(StatusCode, serde_json::Value)>;
 }
 
 pub trait RealtimeEventFilter: for<'de> Deserialize<'de> {

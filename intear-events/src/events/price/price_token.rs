@@ -1,7 +1,13 @@
+use std::collections::HashMap;
+use std::str::FromStr;
+
+use inevents::actix_web::http::StatusCode;
+use inevents::events::event::CustomHttpEndpoint;
 use inindexer::near_indexer_primitives::types::{AccountId, BlockHeight};
 use inindexer::near_utils::dec_format;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use sqlx::postgres::types::PgInterval;
 #[cfg(feature = "impl")]
 use sqlx::postgres::PgQueryResult;
 use sqlx::types::BigDecimal;
@@ -28,6 +34,225 @@ impl Event for PriceTokenEvent {
     type EventData = PriceTokenEventData;
     type RealtimeEventFilter = RtPriceTokenFilter;
     type DatabaseAdapter = DbPriceTokenAdapter;
+
+    #[cfg(feature = "impl")]
+    fn custom_http_endpoints(pool: Pool<Postgres>) -> Vec<Box<dyn CustomHttpEndpoint>> {
+        vec![Box::new(OhlcEndpoint { pool })]
+    }
+}
+
+#[cfg(feature = "impl")]
+pub struct OhlcEndpoint {
+    pool: Pool<Postgres>,
+}
+
+#[cfg(feature = "impl")]
+impl CustomHttpEndpoint for OhlcEndpoint {
+    fn name(&self) -> &'static str {
+        "ohlc"
+    }
+
+    fn handle(
+        &self,
+        query: HashMap<String, String>,
+        _testnet: bool,
+    ) -> tokio::task::JoinHandle<(StatusCode, serde_json::Value)> {
+        let pool = self.pool.clone();
+        tokio::spawn(async move {
+            let Some(token) = query.get("token") else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    serde_json::json!({"error": "token is required"}),
+                );
+            };
+            let Ok(token) = AccountId::from_str(token) else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    serde_json::json!({
+                        "error": "invalid token"
+                    }),
+                );
+            };
+            let Some(resolution) = query.get("resolution") else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    serde_json::json!({
+                        "error": "resolution is required"
+                    }),
+                );
+            };
+            let Ok(resolution) = OhlcResolution::from_str(resolution) else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    serde_json::json!({
+                        "error": "invalid resolution"
+                    }),
+                );
+            };
+            let Some(count_back) = query.get("count_back") else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    serde_json::json!({
+                        "error": "count_back is required"
+                    }),
+                );
+            };
+            let Ok(count_back) = count_back.parse::<usize>() else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    serde_json::json!({
+                        "error": "invalid count_back"
+                    }),
+                );
+            };
+            if count_back > 1000 {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    serde_json::json!({
+                        "error": "count_back must be less than or equal to 1000"
+                    }),
+                );
+            }
+            let Some(to) = query.get("to") else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    serde_json::json!({
+                        "error": "to is required"
+                    }),
+                );
+            };
+            let Ok(to) = to.parse::<i64>() else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    serde_json::json!({
+                        "error": "invalid to"
+                    }),
+                );
+            };
+            let Some(to) = chrono::DateTime::from_timestamp_millis(to) else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    serde_json::json!({
+                        "error": "invalid to"
+                    }),
+                );
+            };
+
+            let results = sqlx::query!(
+                r#"
+                WITH ohlc AS (
+                    SELECT
+                        time_bucket($1, timestamp) AS bucket,
+                        FIRST(price_usd, timestamp) AS first_price,
+                        MAX(price_usd) AS high,
+                        MIN(price_usd) AS low,
+                        LAST(price_usd, timestamp) AS close
+                    FROM price_token
+                    WHERE token = $2
+                        AND timestamp < $4
+                    GROUP BY bucket
+                    ORDER BY bucket DESC
+                    LIMIT $3
+                )
+                SELECT
+                    bucket,
+                    COALESCE(LAG(close) OVER (ORDER BY bucket), first_price) AS open,
+                    high,
+                    low,
+                    close
+                FROM ohlc
+                ORDER BY bucket ASC;
+                "#,
+                Some(PgInterval::try_from(chrono::Duration::from(resolution)).unwrap()),
+                token.to_string(),
+                count_back as i64 + 1, // we will skip the first record
+                to,
+            )
+            .fetch_all(&pool)
+            .await
+            .map(|records| {
+                records
+                    .into_iter()
+                    .skip(1) // has open price that might not match the previous close
+                    .map(|record| {
+                        serde_json::json!({
+                            "time": record.bucket.unwrap_or_default().timestamp_millis(),
+                            "open": record.open.unwrap_or_default().with_prec(42).to_string(),
+                            "high": record.high.unwrap_or_default().with_prec(42).to_string(),
+                            "low": record.low.unwrap_or_default().with_prec(42).to_string(),
+                            "close": record.close.unwrap_or_default().with_prec(42).to_string(),
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .map_err(|err| {
+                log::error!("Error querying OHLC data: {:?}", err);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    serde_json::json!({"error": "internal server error"}),
+                )
+            });
+            let results = match results {
+                Ok(results) => results,
+                Err((status, error)) => return (status, error),
+            };
+
+            (
+                StatusCode::OK,
+                serde_json::to_value(&results).expect("Error serializing OHLC response"),
+            )
+        })
+    }
+}
+
+enum OhlcResolution {
+    OneSecond,
+    FiveSeconds,
+    OneMinute,
+    FiveMinutes,
+    FifteenMinutes,
+    OneHour,
+    FourHours,
+    OneDay,
+    OneWeek,
+    OneMonth,
+}
+
+impl FromStr for OhlcResolution {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "1S" => Ok(Self::OneSecond),
+            "5S" => Ok(Self::FiveSeconds),
+            "1" => Ok(Self::OneMinute),
+            "5" => Ok(Self::FiveMinutes),
+            "15" => Ok(Self::FifteenMinutes),
+            "60" => Ok(Self::OneHour),
+            "240" => Ok(Self::FourHours),
+            "1D" => Ok(Self::OneDay),
+            "1W" => Ok(Self::OneWeek),
+            "1M" => Ok(Self::OneMonth),
+            _ => Err(()),
+        }
+    }
+}
+
+impl From<OhlcResolution> for chrono::Duration {
+    fn from(resolution: OhlcResolution) -> Self {
+        match resolution {
+            OhlcResolution::OneSecond => chrono::Duration::seconds(1),
+            OhlcResolution::FiveSeconds => chrono::Duration::seconds(5),
+            OhlcResolution::OneMinute => chrono::Duration::minutes(1),
+            OhlcResolution::FiveMinutes => chrono::Duration::minutes(5),
+            OhlcResolution::FifteenMinutes => chrono::Duration::minutes(15),
+            OhlcResolution::OneHour => chrono::Duration::hours(1),
+            OhlcResolution::FourHours => chrono::Duration::hours(4),
+            OhlcResolution::OneDay => chrono::Duration::days(1),
+            OhlcResolution::OneWeek => chrono::Duration::weeks(1),
+            OhlcResolution::OneMonth => chrono::Duration::days(30),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
