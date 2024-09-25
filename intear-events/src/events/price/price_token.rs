@@ -150,7 +150,7 @@ impl CustomHttpEndpoint for OhlcEndpoint {
                     .await
                     .map(|records| {
                         let mut bars = Vec::new();
-                        let mut records = records.into_iter();
+                        let mut records = records.into_iter().rev();
                         let Some(first_bar) = records.next() else {
                             return bars;
                         };
