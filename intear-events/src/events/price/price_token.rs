@@ -104,11 +104,12 @@ impl CustomHttpEndpoint for OhlcEndpoint {
                     }),
                 );
             };
-            if count_back > 1000 {
+            const MAX_COUNT_BACK: usize = 15000;
+            if count_back > MAX_COUNT_BACK {
                 return (
                     StatusCode::BAD_REQUEST,
                     serde_json::json!({
-                        "error": "count_back must be less than or equal to 1000"
+                        "error": format!("count_back must be less than or equal to {MAX_COUNT_BACK}")
                     }),
                 );
             }
@@ -137,44 +138,59 @@ impl CustomHttpEndpoint for OhlcEndpoint {
                 );
             };
 
+            macro_rules! query_materialized_view {
+                ($q: literal) => {
+                    sqlx::query!(
+                        $q,
+                        token.to_string(),
+                        count_back as i64 + 1,
+                        to,
+                    )
+                    .fetch_all(&pool)
+                    .await
+                    .map(|records| {
+                        let mut bars = Vec::new();
+                        let mut records = records.into_iter();
+                        let Some(first_bar) = records.next() else {
+                            return bars;
+                        };
+                        let mut prev_close = first_bar.close.unwrap_or_default();
+                        for record in records {
+                            let high = record.high.unwrap_or_default().max(prev_close.clone());
+                            let low = record.low.unwrap_or_default().min(prev_close.clone());
+                            bars.push(serde_json::json!({
+                                "time": record.bucket.unwrap_or_default().timestamp_millis(),
+                                "open": prev_close.with_prec(42).to_string(),
+                                "high": high.with_prec(42).to_string(),
+                                "low": low.with_prec(42).to_string(),
+                                "close": record.close.clone().unwrap_or_default().with_prec(42).to_string(),
+                            }));
+                            prev_close = record.close.unwrap_or_default();
+                        }
+                        bars
+                    })
+                    .map_err(|err| {
+                        log::error!("Error querying OHLC data: {:?}", err);
+                        (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            serde_json::json!({"error": "internal server error"}),
+                        )
+                    })
+                };
+            }
+
             let results = match resolution {
-                OhlcResolution::OneMinute => sqlx::query!(
+                OhlcResolution::OneMinute => query_materialized_view!(
                     r#"
-                SELECT bucket, open, high, low, close
-                FROM price_token_1min_ohlc
-                WHERE token = $1
-                AND bucket < $3
-                ORDER BY bucket DESC
-                LIMIT $2;
-                "#,
-                    token.to_string(),
-                    count_back as i64 + 1, // we will skip the first record, use it for last-close-equals-first-open
-                    to,
-                )
-                .fetch_all(&pool)
-                .await
-                .map(|records| {
-                    let mut bars = Vec::new();
-                    let mut records = records.into_iter();
-                    let Some(first_bar) = records.next() else {
-                        return bars;
-                    };
-                    let mut prev_close = first_bar.close.unwrap_or_default();
-                    for record in records {
-                        let high = record.high.unwrap_or_default().max(prev_close.clone());
-                        let low = record.low.unwrap_or_default().min(prev_close.clone());
-                        bars.push(serde_json::json!({
-                            "time": record.bucket.unwrap_or_default().timestamp_millis(),
-                            "open": prev_close.with_prec(42).to_string(),
-                            "high": high.with_prec(42).to_string(),
-                            "low": low.with_prec(42).to_string(),
-                            "close": record.close.clone().unwrap_or_default().with_prec(42).to_string(),
-                        }));
-                        prev_close = record.close.unwrap_or_default();
-                    }
-                    bars
-                }),
-                OhlcResolution::OneHour => sqlx::query!(
+                    SELECT bucket, open, high, low, close
+                    FROM price_token_1min_ohlc
+                    WHERE token = $1
+                    AND bucket < $3
+                    ORDER BY bucket DESC
+                    LIMIT $2;
+                    "#
+                ),
+                OhlcResolution::OneHour => query_materialized_view!(
                     r#"
                     SELECT bucket, open, high, low, close
                     FROM price_token_1hour_ohlc
@@ -182,42 +198,19 @@ impl CustomHttpEndpoint for OhlcEndpoint {
                     AND bucket < $3
                     ORDER BY bucket DESC
                     LIMIT $2;
-                    "#,
-                    token.to_string(),
-                    count_back as i64 + 1,
-                    to,
-                )
-                .fetch_all(&pool)
-                .await
-                .map(|records| {
-                    let mut bars = Vec::new();
-                    let mut records = records.into_iter();
-                    let Some(first_bar) = records.next() else {
-                        return bars;
-                    };
-                    let mut prev_close = first_bar.close.unwrap_or_default();
-                    for record in records {
-                        let high = record.high.unwrap_or_default().max(prev_close.clone());
-                        let low = record.low.unwrap_or_default().min(prev_close.clone());
-                        bars.push(serde_json::json!({
-                            "time": record.bucket.unwrap_or_default().timestamp_millis(),
-                            "open": prev_close.with_prec(42).to_string(),
-                            "high": high.with_prec(42).to_string(),
-                            "low": low.with_prec(42).to_string(),
-                            "close": record.close.clone().unwrap_or_default().with_prec(42).to_string(),
-                        }));
-                        prev_close = record.close.unwrap_or_default();
-                    }
-                    bars
-                }),
-            }
-            .map_err(|err| {
-                log::error!("Error querying OHLC data: {:?}", err);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    serde_json::json!({"error": "internal server error"}),
-                )
-            });
+                    "#
+                ),
+                OhlcResolution::OneDay => query_materialized_view!(
+                    r#"
+                    SELECT bucket, open, high, low, close
+                    FROM price_token_1day_ohlc
+                    WHERE token = $1
+                    AND bucket < $3
+                    ORDER BY bucket DESC
+                    LIMIT $2;
+                    "#
+                ),
+            };
             let results = match results {
                 Ok(results) => results,
                 Err((status, error)) => return (status, error),
@@ -231,9 +224,11 @@ impl CustomHttpEndpoint for OhlcEndpoint {
     }
 }
 
+#[allow(clippy::enum_variant_names)]
 enum OhlcResolution {
     OneMinute,
     OneHour,
+    OneDay,
 }
 
 impl FromStr for OhlcResolution {
@@ -243,6 +238,7 @@ impl FromStr for OhlcResolution {
         match s {
             "1" => Ok(Self::OneMinute),
             "60" => Ok(Self::OneHour),
+            "1D" => Ok(Self::OneDay),
             _ => Err(()),
         }
     }
