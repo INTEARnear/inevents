@@ -7,7 +7,6 @@ use inindexer::near_indexer_primitives::types::{AccountId, BlockHeight};
 use inindexer::near_utils::dec_format;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use sqlx::postgres::types::PgInterval;
 #[cfg(feature = "impl")]
 use sqlx::postgres::PgQueryResult;
 use sqlx::types::BigDecimal;
@@ -138,53 +137,80 @@ impl CustomHttpEndpoint for OhlcEndpoint {
                 );
             };
 
-            let results = sqlx::query!(
-                r#"
-                WITH ohlc AS (
-                    SELECT
-                        time_bucket($1, timestamp) AS bucket,
-                        FIRST(price_usd, timestamp) AS first_price,
-                        MAX(price_usd) AS high,
-                        MIN(price_usd) AS low,
-                        LAST(price_usd, timestamp) AS close
-                    FROM price_token
-                    WHERE token = $2
-                        AND timestamp < $4
-                    GROUP BY bucket
-                    ORDER BY bucket DESC
-                    LIMIT $3
-                )
-                SELECT
-                    bucket,
-                    COALESCE(LAG(close) OVER (ORDER BY bucket), first_price) AS open,
-                    high,
-                    low,
-                    close
-                FROM ohlc
-                ORDER BY bucket ASC;
+            let results = match resolution {
+                OhlcResolution::OneMinute => sqlx::query!(
+                    r#"
+                SELECT bucket, open, high, low, close
+                FROM price_token_1min_ohlc
+                WHERE token = $1
+                AND bucket < $3
+                ORDER BY bucket DESC
+                LIMIT $2;
                 "#,
-                Some(PgInterval::try_from(chrono::Duration::from(resolution)).unwrap()),
-                token.to_string(),
-                count_back as i64 + 1, // we will skip the first record
-                to,
-            )
-            .fetch_all(&pool)
-            .await
-            .map(|records| {
-                records
-                    .into_iter()
-                    .skip(1) // has open price that might not match the previous close
-                    .map(|record| {
-                        serde_json::json!({
+                    token.to_string(),
+                    count_back as i64 + 1, // we will skip the first record, use it for last-close-equals-first-open
+                    to,
+                )
+                .fetch_all(&pool)
+                .await
+                .map(|records| {
+                    let mut bars = Vec::new();
+                    let mut records = records.into_iter();
+                    let Some(first_bar) = records.next() else {
+                        return bars;
+                    };
+                    let mut prev_close = first_bar.close.unwrap_or_default();
+                    for record in records {
+                        let high = record.high.unwrap_or_default().max(prev_close.clone());
+                        let low = record.low.unwrap_or_default().min(prev_close.clone());
+                        bars.push(serde_json::json!({
                             "time": record.bucket.unwrap_or_default().timestamp_millis(),
-                            "open": record.open.unwrap_or_default().with_prec(42).to_string(),
-                            "high": record.high.unwrap_or_default().with_prec(42).to_string(),
-                            "low": record.low.unwrap_or_default().with_prec(42).to_string(),
-                            "close": record.close.unwrap_or_default().with_prec(42).to_string(),
-                        })
-                    })
-                    .collect::<Vec<_>>()
-            })
+                            "open": prev_close.with_prec(42).to_string(),
+                            "high": high.with_prec(42).to_string(),
+                            "low": low.with_prec(42).to_string(),
+                            "close": record.close.clone().unwrap_or_default().with_prec(42).to_string(),
+                        }));
+                        prev_close = record.close.unwrap_or_default();
+                    }
+                    bars
+                }),
+                OhlcResolution::OneHour => sqlx::query!(
+                    r#"
+                    SELECT bucket, open, high, low, close
+                    FROM price_token_1hour_ohlc
+                    WHERE token = $1
+                    AND bucket < $3
+                    ORDER BY bucket DESC
+                    LIMIT $2;
+                    "#,
+                    token.to_string(),
+                    count_back as i64 + 1,
+                    to,
+                )
+                .fetch_all(&pool)
+                .await
+                .map(|records| {
+                    let mut bars = Vec::new();
+                    let mut records = records.into_iter();
+                    let Some(first_bar) = records.next() else {
+                        return bars;
+                    };
+                    let mut prev_close = first_bar.close.unwrap_or_default();
+                    for record in records {
+                        let high = record.high.unwrap_or_default().max(prev_close.clone());
+                        let low = record.low.unwrap_or_default().min(prev_close.clone());
+                        bars.push(serde_json::json!({
+                            "time": record.bucket.unwrap_or_default().timestamp_millis(),
+                            "open": prev_close.with_prec(42).to_string(),
+                            "high": high.with_prec(42).to_string(),
+                            "low": low.with_prec(42).to_string(),
+                            "close": record.close.clone().unwrap_or_default().with_prec(42).to_string(),
+                        }));
+                        prev_close = record.close.unwrap_or_default();
+                    }
+                    bars
+                }),
+            }
             .map_err(|err| {
                 log::error!("Error querying OHLC data: {:?}", err);
                 (
@@ -206,16 +232,8 @@ impl CustomHttpEndpoint for OhlcEndpoint {
 }
 
 enum OhlcResolution {
-    OneSecond,
-    FiveSeconds,
     OneMinute,
-    FiveMinutes,
-    FifteenMinutes,
     OneHour,
-    FourHours,
-    OneDay,
-    OneWeek,
-    OneMonth,
 }
 
 impl FromStr for OhlcResolution {
@@ -223,34 +241,9 @@ impl FromStr for OhlcResolution {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "1S" => Ok(Self::OneSecond),
-            "5S" => Ok(Self::FiveSeconds),
             "1" => Ok(Self::OneMinute),
-            "5" => Ok(Self::FiveMinutes),
-            "15" => Ok(Self::FifteenMinutes),
             "60" => Ok(Self::OneHour),
-            "240" => Ok(Self::FourHours),
-            "1D" => Ok(Self::OneDay),
-            "1W" => Ok(Self::OneWeek),
-            "1M" => Ok(Self::OneMonth),
             _ => Err(()),
-        }
-    }
-}
-
-impl From<OhlcResolution> for chrono::Duration {
-    fn from(resolution: OhlcResolution) -> Self {
-        match resolution {
-            OhlcResolution::OneSecond => chrono::Duration::seconds(1),
-            OhlcResolution::FiveSeconds => chrono::Duration::seconds(5),
-            OhlcResolution::OneMinute => chrono::Duration::minutes(1),
-            OhlcResolution::FiveMinutes => chrono::Duration::minutes(5),
-            OhlcResolution::FifteenMinutes => chrono::Duration::minutes(15),
-            OhlcResolution::OneHour => chrono::Duration::hours(1),
-            OhlcResolution::FourHours => chrono::Duration::hours(4),
-            OhlcResolution::OneDay => chrono::Duration::days(1),
-            OhlcResolution::OneWeek => chrono::Duration::weeks(1),
-            OhlcResolution::OneMonth => chrono::Duration::days(30),
         }
     }
 }
