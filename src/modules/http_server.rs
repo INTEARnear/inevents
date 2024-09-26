@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::rc::Rc;
 use std::{
     fmt::{self, Display, Formatter},
@@ -22,7 +22,9 @@ use actix_web::{
     App, HttpRequest, HttpResponse, ResponseError,
 };
 use async_trait::async_trait;
-use schemars::schema::{InstanceType, SingleOrVec};
+use schemars::schema::{
+    InstanceType, NumberValidation, ObjectValidation, SchemaObject, SingleOrVec,
+};
 use sqlx::PgPool;
 use utoipa::openapi::{
     path::{OperationBuilder, ParameterBuilder, ParameterIn, PathItemBuilder},
@@ -311,7 +313,6 @@ pub fn create_openapi_spec<E: EventCollection>(testnet: bool) -> OpenApi {
         }))
         .paths({
             let mut builder = PathsBuilder::new();
-            let pagination_schema = schemars::schema_for!(PaginationParameters);
             for event in E::events() {
                 if event.excluded_from_database {
                     continue;
@@ -323,22 +324,49 @@ pub fn create_openapi_spec<E: EventCollection>(testnet: bool) -> OpenApi {
                     format!("/query{}/{}", if testnet { "-testnet" } else { "" }, event.event_identifier),
                     PathItemBuilder::new()
                         .parameters(Some({
-                            if let Some(object) = &pagination_schema.schema.object {
-                                object
-                                    .properties
-                                    .iter()
-                                    .map(|(name, schema)| {
-                                        ParameterBuilder::new()
-                                            .name(name)
-                                            .parameter_in(ParameterIn::Query)
-                                            .required(Required::False)
-                                            .schema(to_openapi_schema(schema))
-                                            .build()
-                                    })
-                                    .collect::<Vec<_>>()
-                            } else {
-                                unreachable!()
-                            }
+                            let mut params = <PaginationParameters as utoipa::IntoParams>::into_params(|| Some(ParameterIn::Query));
+                            params.extend([
+                                ParameterBuilder::new()
+                                    .name("block_height")
+                                    .description(Some("Only when `pagination_by` is `BeforeBlockHeight` or `AfterBlockHeight`"))
+                                    .parameter_in(ParameterIn::Query)
+                                    .required(Required::False)
+                                    .schema(Some(utoipa::openapi::schema::Schema::Object(
+                                        ObjectBuilder::new()
+                                            .schema_type(SchemaType::Integer)
+                                            .minimum(Some(0.0))
+                                            .multiple_of(Some(1.0))
+                                            .build(),
+                                    )))
+                                    .build(),
+                                ParameterBuilder::new()
+                                    .name("timestamp")
+                                    .description(Some("Only when `pagination_by` is `BeforeTimestamp` or `AfterTimestamp`"))
+                                    .parameter_in(ParameterIn::Query)
+                                    .required(Required::False)
+                                    .schema(Some(utoipa::openapi::schema::Schema::Object(
+                                        ObjectBuilder::new()
+                                            .schema_type(SchemaType::Integer)
+                                            .minimum(Some(0.0))
+                                            .multiple_of(Some(1.0))
+                                            .build(),
+                                    )))
+                                    .build(),
+                                ParameterBuilder::new()
+                                    .name("id")
+                                    .description(Some("Only when `pagination_by` is `BeforeId` or `AfterId`"))
+                                    .parameter_in(ParameterIn::Query)
+                                    .required(Required::False)
+                                    .schema(Some(utoipa::openapi::schema::Schema::Object(
+                                        ObjectBuilder::new()
+                                            .schema_type(SchemaType::Integer)
+                                            .minimum(Some(0.0))
+                                            .multiple_of(Some(1.0))
+                                            .build(),
+                                    )))
+                                    .build(),
+                            ]);
+                            params
                         }))
                         .operation(
                             PathItemType::Get,
@@ -377,9 +405,32 @@ pub fn create_openapi_spec<E: EventCollection>(testnet: bool) -> OpenApi {
                                                         .min_items(Some(0))
                                                         .items(
                                                             to_openapi_schema(
+                                                                // // returns an array of events
+                                                                // &schemars::schema::Schema::Object(
+                                                                //     event.event_data_schema.schema,
+                                                                // ),
+
+                                                                // returns an array of {"id": number, "event": object}
                                                                 &schemars::schema::Schema::Object(
-                                                                    event.event_data_schema.schema,
-                                                                ),
+                                                                    SchemaObject {
+                                                                        object: Some(Box::new(ObjectValidation {
+                                                                            properties: BTreeMap::from_iter([
+                                                                                ("id".to_string(), schemars::schema::Schema::Object(SchemaObject {
+                                                                                    number: Some(Box::new(NumberValidation {
+                                                                                        multiple_of: Some(1.0),
+                                                                                        minimum: Some(0.0),
+                                                                                        ..Default::default()
+                                                                                    })),
+                                                                                    ..Default::default()
+                                                                                })),
+                                                                                ("event".to_string(), schemars::schema::Schema::Object(event.event_data_schema.schema)),
+                                                                            ]),
+                                                                            required: BTreeSet::from_iter(["id".to_string(), "event".to_string()]),
+                                                                            ..Default::default()
+                                                                        })),
+                                                                        ..Default::default()
+                                                                    }
+                                                                )
                                                             )
                                                             .expect(
                                                                 "Failed to create response schema",

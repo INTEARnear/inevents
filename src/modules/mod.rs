@@ -10,7 +10,7 @@ use http_server::AppError;
 use schemars::schema::RootSchema;
 use sqlx::{PgPool, Pool, Postgres};
 
-use crate::events::event::{CustomHttpEndpoint, PaginationParameters};
+use crate::events::event::{CustomHttpEndpoint, EventId, PaginationParameters};
 
 #[async_trait]
 pub trait EventModule {
@@ -22,7 +22,8 @@ pub trait EventCollection {
 }
 
 pub(in crate::modules) type FilterFn = Box<dyn Fn(&serde_json::Value) -> bool>;
-type PaginatedResponse = Result<Vec<serde_json::Value>, AppError>;
+type ResponseWithIds = Vec<(EventId, serde_json::Value)>;
+type PaginatedResponse = Result<ResponseWithIds, AppError>;
 
 type BoxFutureWithLifetime<'a, T> = Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;
 type BoxFuture<T> = Pin<Box<dyn std::future::Future<Output = T>>>;

@@ -7,6 +7,7 @@ use near_indexer_primitives::types::BlockHeight;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
+use utoipa::openapi::PathItem;
 
 pub trait Event {
     const ID: &'static str;
@@ -26,6 +27,11 @@ pub trait Event {
 
 pub trait CustomHttpEndpoint {
     fn name(&self) -> &'static str;
+
+    /// Return none if not supported
+    fn openapi(&self) -> Option<PathItem> {
+        None
+    }
 
     fn handle(
         &self,
@@ -64,15 +70,14 @@ pub trait DatabaseEventFilter {
 
 pub const MAX_EVENTS_PER_REQUEST: u64 = 200;
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct PaginationParameters {
-    pub pagination_by: PaginationBy,
-    #[schemars(range(max = 200))]
-    #[serde(default = "default_events_per_request")]
     pub limit: u64,
+    #[serde(flatten)]
+    pub pagination_by: PaginationBy,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize, JsonSchema, utoipa::ToSchema)]
 #[serde(tag = "pagination_by")]
 pub enum PaginationBy {
     Oldest,
@@ -110,7 +115,3 @@ pub enum Order {
 }
 
 pub type EventId = u64;
-
-fn default_events_per_request() -> u64 {
-    10
-}

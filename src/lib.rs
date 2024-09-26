@@ -28,9 +28,9 @@ macro_rules! create_events {
                                                 .await
                                                 .map_err($crate::modules::http_server::AppError::Db)?
                                                 .into_iter()
-                                                .map(|event| {
-                                                    $crate::serde_json::to_value(&event)
-                                                        .expect("Error serializing event")
+                                                .map(|(id, event)| {
+                                                    (id, $crate::serde_json::to_value(&event)
+                                                        .expect("Error serializing event"))
                                                 })
                                                 .collect::<::std::vec::Vec<_>>())
                                     }
