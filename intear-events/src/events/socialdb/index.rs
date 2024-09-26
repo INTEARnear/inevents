@@ -100,7 +100,7 @@ impl DatabaseEventFilter for DbSocialDBIndexFilter {
         &self,
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
-        _testnet: bool,
+        testnet: bool,
     ) -> Result<Vec<(EventId, <Self::Event as Event>::EventData)>, sqlx::Error> {
         let limit = pagination.limit as i64;
 
@@ -146,15 +146,19 @@ impl DatabaseEventFilter for DbSocialDBIndexFilter {
             -1
         };
 
+        let account_id = self.account_id.as_ref().map(|a| a.as_str());
+        let index_type = self.index_type.as_ref();
+        let index_key = self.index_key.as_ref();
+
         sqlx_conditional_queries::conditional_query_as!(
             SqlSocialDBIndexEventData,
             r#"
             SELECT *
-            FROM socialdb_index
+            FROM socialdb_index{#testnet}
             WHERE {#time}
-                {#account_id}
-                {#index_type}
-                {#index_key}
+                AND ({account_id}::TEXT IS NULL OR account_id = {account_id})
+                AND ({index_type}::TEXT IS NULL OR index_type = {index_type})
+                AND ({index_key}::JSONB IS NULL OR index_key = {index_key})
             ORDER BY id {#order}
             LIMIT {limit}
             "#,
@@ -168,17 +172,9 @@ impl DatabaseEventFilter for DbSocialDBIndexFilter {
                 PaginationBy::Oldest => ("true", "ASC"),
                 PaginationBy::Newest => ("true", "DESC"),
             },
-            #account_id = match self.account_id.as_ref().map(|a| a.as_str()) {
-                Some(ref account_id) => "AND account_id = {account_id}",
-                None => "",
-            },
-            #index_type = match self.index_type.as_ref() {
-                Some(ref index_type) => "AND index_type = {index_type}",
-                None => "",
-            },
-            #index_key = match self.index_key.as_ref() {
-                Some(ref index_key) => "AND index_key = {index_key}",
-                None => "",
+            #testnet = match testnet {
+                true => "", // "_testnet",
+                false => "",
             },
         )
         .fetch_all(pool)

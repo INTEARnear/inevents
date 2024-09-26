@@ -361,13 +361,15 @@ impl DatabaseEventFilter for DbPriceTokenFilter {
         } else {
             -1
         };
+
+        let token = self.token.as_ref().map(|t| t.as_str());
         sqlx_conditional_queries::conditional_query_as!(
             SqlPriceTokenEventData,
             r#"
             SELECT *
             FROM price_token{#testnet}
             WHERE {#time}
-                {#token}
+                AND ({token}::TEXT IS NULL OR token = {token})
             ORDER BY id {#order}
             LIMIT {limit}
             "#,
@@ -380,10 +382,6 @@ impl DatabaseEventFilter for DbPriceTokenFilter {
                 PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
                 PaginationBy::Oldest => ("true", "ASC"),
                 PaginationBy::Newest => ("true", "DESC"),
-            },
-            #token = match self.token.as_ref().map(|t| t.as_str()) {
-                Some(ref token) => "AND token = {token}",
-                None => "",
             },
             #testnet = match testnet {
                 true => "", // "_testnet",

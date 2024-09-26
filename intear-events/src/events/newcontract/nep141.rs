@@ -146,13 +146,14 @@ impl DatabaseEventFilter for NewContractNep141Filter {
             -1
         };
 
+        let account_id = self.account_id.as_ref().map(|id| id.as_str());
         sqlx_conditional_queries::conditional_query_as!(
             SqlNewContractNep141EventData,
             r#"
             SELECT *
             FROM newcontract_nep141{#testnet}
             WHERE {#time}
-                {#account_id}
+                AND ({account_id}::TEXT IS NULL OR account_id = {account_id})
             ORDER BY id {#order}
             LIMIT {limit}
             "#,
@@ -165,10 +166,6 @@ impl DatabaseEventFilter for NewContractNep141Filter {
                 PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
                 PaginationBy::Oldest => ("true", "ASC"),
                 PaginationBy::Newest => ("true", "DESC"),
-            },
-            #account_id = match self.account_id.as_ref().map(|id| id.as_str()) {
-                Some(ref account_id) => "AND account_id = {account_id}",
-                None => "",
             },
             #testnet = match testnet {
                 true => "_testnet",

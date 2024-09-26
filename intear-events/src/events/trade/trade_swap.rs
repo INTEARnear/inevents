@@ -184,6 +184,7 @@ impl DatabaseEventFilter for DbTradeSwapFilter {
 
         #[derive(Debug, sqlx::FromRow)]
         struct SqlTradeSwapEventData {
+            id: i64,
             transaction_id: String,
             receipt_id: String,
             block_height: i64,
@@ -221,14 +222,21 @@ impl DatabaseEventFilter for DbTradeSwapFilter {
             -1
         };
 
+        let trader = self.trader_account_id.as_ref().map(|t| t.as_str());
+        let involved_token_account_ids = self
+            .involved_token_account_ids
+            .as_ref()
+            .map(|ids| ids.split(',').map(|s| s.to_string()).collect::<Vec<_>>());
+        let involved_token_account_ids = involved_token_account_ids.as_deref();
+
         sqlx_conditional_queries::conditional_query_as!(
             SqlTradeSwapEventData,
             r#"
             SELECT *
             FROM trade_swap{#testnet}
             WHERE {#time}
-                {#trader}
-                {#balance_changes}
+                AND ({trader}::TEXT IS NULL OR trader = {trader})
+                AND ({involved_token_account_ids}::TEXT[] IS NULL OR balance_changes ?& {involved_token_account_ids})
             ORDER BY id {#order}
             LIMIT {limit}
             "#,
@@ -242,14 +250,6 @@ impl DatabaseEventFilter for DbTradeSwapFilter {
                 PaginationBy::Oldest => ("true", "ASC"),
                 PaginationBy::Newest => ("true", "DESC"),
             },
-            #trader = match self.trader_account_id.as_ref().map(|t| t.as_str()) {
-                Some(ref trader) => "AND trader = {trader}",
-                None => "",
-            },
-            #balance_changes = match self.involved_token_account_ids.as_ref() {
-                Some(ref tokens) => "AND balance_changes ?& {tokens}",
-                None => "",
-            },
             #testnet = match testnet {
                 true => "_testnet",
                 false => "",
@@ -259,29 +259,27 @@ impl DatabaseEventFilter for DbTradeSwapFilter {
         .await
         .map(|records| {
             records
-                .into_iter()
-                .map(|record| {
-                    (
-                        record.transaction_id.parse().unwrap(),
-                        TradeSwapEventData {
-                            trader: record.trader.parse().unwrap(),
-                            transaction_id: record.transaction_id.parse().unwrap(),
-                            receipt_id: record.receipt_id.parse().unwrap(),
-                            block_height: record.block_height as u64,
-                            block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap()
-                                as u128,
-                            balance_changes: {
-                                let balance_changes: HashMap<AccountId, String> =
-                                    serde_json::from_value(record.balance_changes).unwrap();
-                                balance_changes
-                                    .into_iter()
-                                    .map(|(k, v)| (k, v.parse().unwrap()))
-                                    .collect()
-                            },
+            .into_iter()
+            .map(|record| {
+                (
+                    record.id as u64,
+                    TradeSwapEventData {
+                        trader: record.trader.parse().unwrap(),
+                        transaction_id: record.transaction_id.parse().unwrap(),
+                        receipt_id: record.receipt_id.parse().unwrap(),
+                        block_height: record.block_height as u64,
+                        block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
+                        balance_changes: {
+                        let balance_changes: HashMap<AccountId, String> = serde_json::from_value(record.balance_changes).unwrap();
+                        balance_changes
+                            .into_iter()
+                            .map(|(k, v)| (k, v.parse().unwrap()))
+                            .collect()
                         },
-                    )
-                })
-                .collect()
+                    },
+                )
+            })
+            .collect()
         })
     }
 }

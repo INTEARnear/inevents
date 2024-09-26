@@ -163,14 +163,16 @@ impl DatabaseEventFilter for NewMemeCookingMemeFilter {
             -1
         };
 
+        let meme_id = self.meme_id.map(|meme_id| meme_id as i64);
+        let token_id = self.token_id.as_ref().map(|id| id.as_str());
         sqlx_conditional_queries::conditional_query_as!(
             SqlNewMemeCookingTokenEventData,
             r#"
             SELECT *
             FROM memecooking_create_token{#testnet}
             WHERE {#time}
-                {#meme_id}
-                {#token_id}
+            AND ({meme_id}::BIGINT IS NULL OR meme_id = {meme_id})
+            AND ({token_id}::TEXT IS NULL OR token_id = {token_id})
             ORDER BY id {#order}
             LIMIT {limit}
             "#,
@@ -183,14 +185,6 @@ impl DatabaseEventFilter for NewMemeCookingMemeFilter {
                 PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
                 PaginationBy::Oldest => ("true", "ASC"),
                 PaginationBy::Newest => ("true", "DESC"),
-            },
-            #meme_id = match self.meme_id {
-                Some(meme_id) => "AND meme_id = {meme_id}",
-                None => "",
-            },
-            #token_id = match self.token_id.as_ref().map(|id| id.as_str()) {
-                Some(token_id) => "AND token_id = {token_id}",
-                None => "",
             },
             #testnet = match testnet {
                 true => "_testnet",

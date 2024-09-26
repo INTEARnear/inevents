@@ -168,14 +168,22 @@ impl DatabaseEventFilter for DbPricePoolFilter {
             .map(|s| s.split(',').map(|s| s.to_string()).collect::<Vec<_>>())
             .unwrap_or_default();
 
+        let pool_id = self.pool_id.as_deref();
+        let involved_token_account_ids = if involved_token_account_ids.is_empty() {
+            None
+        } else {
+            Some(&involved_token_account_ids[..])
+        };
+        // let involved_token_account_ids = involved_token_account_ids.as_deref();
+
         sqlx_conditional_queries::conditional_query_as!(
             SqlPricePoolEventData,
             r#"
             SELECT *
             FROM price_pool{#testnet}
             WHERE {#time}
-                {#pool_id}
-                {#involved_tokens}
+                AND ({pool_id}::TEXT IS NULL OR pool_id = {pool_id})
+                AND ({involved_token_account_ids}::TEXT[] IS NULL OR ARRAY[token0, token1] @> {involved_token_account_ids})
             ORDER BY id {#order}
             LIMIT {limit}
             "#,
@@ -189,14 +197,6 @@ impl DatabaseEventFilter for DbPricePoolFilter {
                 PaginationBy::Oldest => ("true", "ASC"),
                 PaginationBy::Newest => ("true", "DESC"),
             },
-            #pool_id = match self.pool_id.as_ref().map(|p| p.as_str()) {
-                Some(ref pool_id) => "AND pool_id = {pool_id}",
-                None => "",
-            },
-            #involved_tokens = match involved_token_account_ids.is_empty() {
-                true => "",
-                false => "AND ARRAY[token0, token1] @> {involved_token_account_ids}"
-            },
             #testnet = match testnet {
                 true => "", // "_testnet",
                 false => "",
@@ -206,23 +206,23 @@ impl DatabaseEventFilter for DbPricePoolFilter {
         .await
         .map(|records| {
             records
-                .into_iter()
-                .map(|record| {
-                    (
-                        record.id as EventId,
-                        PricePoolEventData {
-                            block_height: record.block_height as u64,
-                            pool_id: record.pool_id,
-                            token0: record.token0.parse().unwrap(),
-                            token1: record.token1.parse().unwrap(),
-                            token0_in_1_token1: record.token0_in_1_token1,
-                            token1_in_1_token0: record.token1_in_1_token0,
-                            timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap()
-                                as u128,
-                        },
-                    )
-                })
-                .collect()
+            .into_iter()
+            .map(|record| {
+                (
+                    record.id as EventId,
+                    PricePoolEventData {
+                        block_height: record.block_height as u64,
+                        pool_id: record.pool_id,
+                        token0: record.token0.parse().unwrap(),
+                        token1: record.token1.parse().unwrap(),
+                        token0_in_1_token1: record.token0_in_1_token1,
+                        token1_in_1_token0: record.token1_in_1_token0,
+                        timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap()
+                        as u128,
+                    },
+                )
+            })
+            .collect()
         })
     }
 }

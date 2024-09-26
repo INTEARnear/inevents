@@ -163,13 +163,14 @@ impl DatabaseEventFilter for DbTradePoolChangeFilter {
             -1
         };
 
+        let pool_id = self.pool_id.as_deref();
         sqlx_conditional_queries::conditional_query_as!(
             SqlTradePoolChangeEventData,
             r#"
             SELECT *
             FROM trade_pool_change{#testnet}
             WHERE {#time}
-                {#pool_id}
+                AND ({pool_id}::TEXT IS NULL OR pool_id = {pool_id})
             ORDER BY id {#order}
             LIMIT {limit}
             "#,
@@ -182,10 +183,6 @@ impl DatabaseEventFilter for DbTradePoolChangeFilter {
                 PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
                 PaginationBy::Oldest => ("true", "ASC"),
                 PaginationBy::Newest => ("true", "DESC"),
-            },
-            #pool_id = match self.pool_id.as_ref().map(|p| p.as_str()) {
-                Some(ref pool_id) => "AND pool_id = {pool_id}",
-                None => "",
             },
             #testnet = match testnet {
                 true => "_testnet",

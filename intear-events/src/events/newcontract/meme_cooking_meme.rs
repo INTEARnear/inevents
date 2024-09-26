@@ -186,14 +186,16 @@ impl DatabaseEventFilter for NewMemeCookingMemeFilter {
             -1
         };
 
+        let meme_id = self.meme_id.map(|meme_id| meme_id as i64);
+        let owner = self.owner.as_ref().map(|o| o.as_str());
         sqlx_conditional_queries::conditional_query_as!(
             SqlNewMemeCookingMemeEventData,
             r#"
             SELECT *
             FROM new_memecooking_meme{#testnet}
             WHERE {#time}
-                {#meme_id}
-                {#owner}
+                AND ({meme_id}::BIGINT IS NULL OR meme_id = {meme_id})
+                AND ({owner}::TEXT IS NULL OR owner = {owner})
             ORDER BY id {#order}
             LIMIT {limit}
             "#,
@@ -207,16 +209,8 @@ impl DatabaseEventFilter for NewMemeCookingMemeFilter {
                 PaginationBy::Oldest => ("true", "ASC"),
                 PaginationBy::Newest => ("true", "DESC"),
             },
-            #meme_id = match self.meme_id {
-                Some(meme_id) => "AND meme_id = {meme_id}",
-                None => "",
-            },
-            #owner = match self.owner.as_ref().map(|o| o.as_str()) {
-                Some(ref owner) => "AND owner = {owner}",
-                None => "",
-            },
             #testnet = match testnet {
-                true => "_testnet",
+                true => "", // "_testnet",
                 false => "",
             },
         )

@@ -144,6 +144,7 @@ impl DatabaseEventFilter for DbPotlockPotProjectDonationFilter {
 
         #[derive(Debug, sqlx::FromRow)]
         struct SqlPotlockPotProjectDonationEventData {
+            id: i64,
             transaction_id: String,
             receipt_id: String,
             block_height: i64,
@@ -192,48 +193,37 @@ impl DatabaseEventFilter for DbPotlockPotProjectDonationFilter {
             -1
         };
 
+        let pot_id = self.pot_id.as_ref().map(|id| id.as_str());
+        let project_id = self.project_id.as_ref().map(|id| id.as_str());
+        let donor_id = self.donor_id.as_ref().map(|id| id.as_str());
+        let referrer_id = self.referrer_id.as_ref().map(|id| id.as_str());
+
         sqlx_conditional_queries::conditional_query_as!(
             SqlPotlockPotProjectDonationEventData,
             r#"
             SELECT *
             FROM potlock_pot_project_donation{#testnet}
             WHERE {#time}
-                {#pot_id}
-                {#project_id}
-                {#donor_id}
-                {#referrer_id}
+            AND ({pot_id}::TEXT IS NULL OR pot_id = {pot_id})
+            AND ({project_id}::TEXT IS NULL OR project_id = {project_id})
+            AND ({donor_id}::TEXT IS NULL OR donor_id = {donor_id})
+            AND ({referrer_id}::TEXT IS NULL OR referrer_id = {referrer_id})
             ORDER BY id {#order}
             LIMIT {limit}
             "#,
             #(time, order) = match &pagination.pagination_by {
-                PaginationBy::BeforeBlockHeight { .. } => ("block_height < {block_height}", "DESC"),
-                PaginationBy::AfterBlockHeight { .. } => ("block_height > {block_height}", "ASC"),
-                PaginationBy::BeforeTimestamp { .. } => ("timestamp < {timestamp}", "DESC"),
-                PaginationBy::AfterTimestamp { .. } => ("timestamp > {timestamp}", "ASC"),
-                PaginationBy::BeforeId { .. } => ("id < {id}", "DESC"),
-                PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
-                PaginationBy::Oldest => ("true", "ASC"),
-                PaginationBy::Newest => ("true", "DESC"),
-            },
-            #pot_id = match self.pot_id.as_ref().map(|id| id.as_str()) {
-                Some(ref pot_id) => "AND pot_id = {pot_id}",
-                None => "",
-            },
-            #project_id = match self.project_id.as_ref().map(|id| id.as_str()) {
-                Some(ref project_id) => "AND project_id = {project_id}",
-                None => "",
-            },
-            #donor_id = match self.donor_id.as_ref().map(|id| id.as_str()) {
-                Some(ref donor_id) => "AND donor_id = {donor_id}",
-                None => "",
-            },
-            #referrer_id = match self.referrer_id.as_ref().map(|id| id.as_str()) {
-                Some(ref referrer_id) => "AND referrer_id = {referrer_id}",
-                None => "",
+            PaginationBy::BeforeBlockHeight { .. } => ("block_height < {block_height}", "DESC"),
+            PaginationBy::AfterBlockHeight { .. } => ("block_height > {block_height}", "ASC"),
+            PaginationBy::BeforeTimestamp { .. } => ("timestamp < {timestamp}", "DESC"),
+            PaginationBy::AfterTimestamp { .. } => ("timestamp > {timestamp}", "ASC"),
+            PaginationBy::BeforeId { .. } => ("id < {id}", "DESC"),
+            PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
+            PaginationBy::Oldest => ("true", "ASC"),
+            PaginationBy::Newest => ("true", "DESC"),
             },
             #testnet = match testnet {
-                true => "", // "_testnet",
-                false => "",
+            true => "", // "_testnet",
+            false => "",
             },
         )
         .fetch_all(pool)
@@ -243,7 +233,7 @@ impl DatabaseEventFilter for DbPotlockPotProjectDonationFilter {
                 .into_iter()
                 .map(|record| {
                     (
-                        record.donation_id as EventId,
+                        record.id as EventId,
                         PotlockPotProjectDonationEventData {
                             donation_id: record.donation_id as u64,
                             pot_id: record.pot_id.parse().unwrap(),

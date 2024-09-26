@@ -132,6 +132,7 @@ impl DatabaseEventFilter for DbPotlockDonationFilter {
 
         #[derive(Debug, sqlx::FromRow)]
         struct SqlPotlockDonationEventData {
+            id: i64,
             transaction_id: String,
             receipt_id: String,
             block_height: i64,
@@ -177,15 +178,19 @@ impl DatabaseEventFilter for DbPotlockDonationFilter {
             -1
         };
 
+        let project_id = self.project_id.as_ref().map(|id| id.as_str());
+        let donor_id = self.donor_id.as_ref().map(|id| id.as_str());
+        let referrer_id = self.referrer_id.as_ref().map(|id| id.as_str());
+
         sqlx_conditional_queries::conditional_query_as!(
             SqlPotlockDonationEventData,
             r#"
             SELECT *
             FROM potlock_donation{#testnet}
             WHERE {#time}
-                {#project_id}
-                {#donor_id}
-                {#referrer_id}
+                AND ({project_id}::TEXT IS NULL OR project_id = {project_id})
+                AND ({donor_id}::TEXT IS NULL OR donor_id = {donor_id})
+                AND ({referrer_id}::TEXT IS NULL OR referrer_id = {referrer_id})
             ORDER BY id {#order}
             LIMIT {limit}
             "#,
@@ -199,18 +204,6 @@ impl DatabaseEventFilter for DbPotlockDonationFilter {
                 PaginationBy::Oldest => ("true", "ASC"),
                 PaginationBy::Newest => ("true", "DESC"),
             },
-            #project_id = match self.project_id.as_ref().map(|id| id.as_str()) {
-                Some(ref project_id) => "AND project_id = {project_id}",
-                None => "",
-            },
-            #donor_id = match self.donor_id.as_ref().map(|id| id.as_str()) {
-                Some(ref donor_id) => "AND donor_id = {donor_id}",
-                None => "",
-            },
-            #referrer_id = match self.referrer_id.as_ref().map(|id| id.as_str()) {
-                Some(ref referrer_id) => "AND referrer_id = {referrer_id}",
-                None => "",
-            },
             #testnet = match testnet {
                 true => "", // "_testnet",
                 false => "",
@@ -223,7 +216,7 @@ impl DatabaseEventFilter for DbPotlockDonationFilter {
                 .into_iter()
                 .map(|record| {
                     (
-                        record.donation_id as EventId,
+                        record.id as EventId,
                         PotlockDonationEventData {
                             donation_id: record.donation_id as u64,
                             donor_id: record.donor_id.parse().unwrap(),

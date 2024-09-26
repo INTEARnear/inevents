@@ -132,12 +132,13 @@ impl DatabaseEventFilter for DbPotlockPotDonationFilter {
         &self,
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
-        _testnet: bool,
+        testnet: bool,
     ) -> Result<Vec<(EventId, <Self::Event as Event>::EventData)>, sqlx::Error> {
         let limit = pagination.limit as i64;
 
         #[derive(Debug, sqlx::FromRow)]
         struct SqlPotlockPotDonationEventData {
+            id: i64,
             transaction_id: String,
             receipt_id: String,
             block_height: i64,
@@ -185,15 +186,19 @@ impl DatabaseEventFilter for DbPotlockPotDonationFilter {
             -1
         };
 
+        let pot_id = self.pot_id.as_ref().map(|id| id.as_str());
+        let donor_id = self.donor_id.as_ref().map(|id| id.as_str());
+        let referrer_id = self.referrer_id.as_ref().map(|id| id.as_str());
+
         sqlx_conditional_queries::conditional_query_as!(
             SqlPotlockPotDonationEventData,
             r#"
             SELECT *
-            FROM potlock_pot_donation
+            FROM potlock_pot_donation{#testnet}
             WHERE {#time}
-                {#pot_id}
-                {#donor_id}
-                {#referrer_id}
+                AND ({pot_id}::TEXT IS NULL OR pot_id = {pot_id})
+                AND ({donor_id}::TEXT IS NULL OR donor_id = {donor_id})
+                AND ({referrer_id}::TEXT IS NULL OR referrer_id = {referrer_id})
             ORDER BY timestamp {#order}
             LIMIT {limit}
             "#,
@@ -207,17 +212,9 @@ impl DatabaseEventFilter for DbPotlockPotDonationFilter {
                 PaginationBy::Oldest => ("true", "ASC"),
                 PaginationBy::Newest => ("true", "DESC"),
             },
-            #pot_id = match self.pot_id.as_ref().map(|id| id.as_str()) {
-                Some(ref pot_id) => "AND pot_id = {pot_id}",
-                None => "",
-            },
-            #donor_id = match self.donor_id.as_ref().map(|id| id.as_str()) {
-                Some(ref donor_id) => "AND donor_id = {donor_id}",
-                None => "",
-            },
-            #referrer_id = match self.referrer_id.as_ref().map(|id| id.as_str()) {
-                Some(ref referrer_id) => "AND referrer_id = {referrer_id}",
-                None => "",
+            #testnet = match testnet {
+                true => "", // "_testnet",
+                false => "",
             },
         )
         .fetch_all(pool)
@@ -227,7 +224,7 @@ impl DatabaseEventFilter for DbPotlockPotDonationFilter {
                 .into_iter()
                 .map(|record| {
                     (
-                        record.donation_id as EventId,
+                        record.id as EventId,
                         PotlockPotDonationEventData {
                             donation_id: record.donation_id as u64,
                             pot_id: record.pot_id.parse().unwrap(),

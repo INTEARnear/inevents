@@ -160,15 +160,18 @@ impl DatabaseEventFilter for DbBlockInfoFilter {
             -1
         };
 
+        let target_block_height = self.block_height.map(|block_height| block_height as i64);
+        let block_hash = self.block_hash.as_ref().map(|h| h.to_string());
+        let block_producer = self.block_producer.as_ref().map(|p| p.as_str());
         sqlx_conditional_queries::conditional_query_as!(
             SqlBlockInfoEventData,
             r#"
             SELECT *
             FROM block_info{#testnet}
             WHERE {#time}
-                {#block_height}
-                {#block_hash}
-                {#block_producer}
+                AND ({target_block_height}::BIGINT IS NULL OR block_height = {target_block_height})
+                AND ({block_hash}::TEXT IS NULL OR block_hash = {block_hash})
+                AND ({block_producer}::TEXT IS NULL OR block_producer = {block_producer})
             ORDER BY id {#order}
             LIMIT {limit}
             "#,
@@ -181,18 +184,6 @@ impl DatabaseEventFilter for DbBlockInfoFilter {
                 PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
                 PaginationBy::Oldest => ("true", "ASC"),
                 PaginationBy::Newest => ("true", "DESC"),
-            },
-            #block_height = match self.block_height {
-                Some(ref block_height) => "AND block_height = {block_height}",
-                None => "",
-            },
-            #block_hash = match self.block_hash.as_ref().map(|h| h.as_str()) {
-                Some(ref block_hash) => "AND block_hash = {block_hash}",
-                None => "",
-            },
-            #block_producer = match self.block_producer.as_ref().map(|p| p.as_str()) {
-                Some(ref block_producer) => "AND block_producer = {block_producer}",
-                None => "",
             },
             #testnet = match testnet {
                 true => "_testnet",

@@ -1,4 +1,4 @@
-use inevents::events::event::{EventId, PaginationBy};
+use inevents::events::event::EventId;
 use inindexer::near_indexer_primitives::types::{AccountId, BlockHeight};
 use inindexer::near_indexer_primitives::CryptoHash;
 use inindexer::near_utils::dec_format;
@@ -71,25 +71,6 @@ impl DatabaseEventAdapter for DbLogTextAdapter {
         _pool: &Pool<Postgres>,
         _testnet: bool,
     ) -> Result<PgQueryResult, sqlx::Error> {
-        // sqlx::query!(
-        //     r#"
-        //     INSERT INTO log_text (timestamp, transaction_id, receipt_id, block_height, account_id, predecessor_id, log_text)
-        //     VALUES ($1, $2, $3, $4, $5, $6, $7)
-        //     "#,
-        //     chrono::DateTime::from_timestamp(
-        //         (event.block_timestamp_nanosec / 1_000_000_000) as i64,
-        //         (event.block_timestamp_nanosec % 1_000_000_000) as u32
-        //     ),
-        //     event.transaction_id.to_string(),
-        //     event.receipt_id.to_string(),
-        //     event.block_height as i64,
-        //     event.account_id.to_string(),
-        //     event.predecessor_id.to_string(),
-        //     event.log_text,
-        // )
-        // .execute(pool)
-        // .await
-        // TODO add testnet support
         unimplemented!()
     }
 }
@@ -100,109 +81,11 @@ impl DatabaseEventFilter for DbLogTextFilter {
 
     async fn query_paginated(
         &self,
-        pagination: &PaginationParameters,
-        pool: &Pool<Postgres>,
-        testnet: bool,
+        _pagination: &PaginationParameters,
+        _pool: &Pool<Postgres>,
+        _testnet: bool,
     ) -> Result<Vec<(EventId, <Self::Event as Event>::EventData)>, sqlx::Error> {
-        let limit = pagination.limit as i64;
-
-        #[derive(Debug, sqlx::FromRow)]
-        struct SqlLogTextEventData {
-            id: i64,
-            timestamp: chrono::DateTime<chrono::Utc>,
-            transaction_id: String,
-            receipt_id: String,
-            block_height: i64,
-            account_id: String,
-            predecessor_id: String,
-            log_text: String,
-        }
-
-        let block_height = if let PaginationBy::BeforeBlockHeight { block_height }
-        | PaginationBy::AfterBlockHeight { block_height } =
-            pagination.pagination_by
-        {
-            block_height as i64
-        } else {
-            -1
-        };
-
-        let timestamp = if let PaginationBy::BeforeTimestamp { timestamp_nanosec }
-        | PaginationBy::AfterTimestamp { timestamp_nanosec } =
-            pagination.pagination_by
-        {
-            chrono::DateTime::from_timestamp(
-                (timestamp_nanosec / 1_000_000_000) as i64,
-                (timestamp_nanosec % 1_000_000_000) as u32,
-            )
-        } else {
-            chrono::DateTime::from_timestamp(0, 0)
-        };
-
-        let id = if let PaginationBy::BeforeId { id } | PaginationBy::AfterId { id } =
-            pagination.pagination_by
-        {
-            id as i32
-        } else {
-            -1
-        };
-
-        sqlx_conditional_queries::conditional_query_as!(
-            SqlLogTextEventData,
-            r#"
-            SELECT *
-            FROM log_text{#testnet}
-            WHERE {#time}
-                {#account_id}
-                {#predecessor_id}
-            ORDER BY id {#order}
-            LIMIT {limit}
-            "#,
-            #(time, order) = match &pagination.pagination_by {
-                PaginationBy::BeforeBlockHeight { .. } => ("block_height < {block_height}", "DESC"),
-                PaginationBy::AfterBlockHeight { .. } => ("block_height > {block_height}", "ASC"),
-                PaginationBy::BeforeTimestamp { .. } => ("timestamp < {timestamp}", "DESC"),
-                PaginationBy::AfterTimestamp { .. } => ("timestamp > {timestamp}", "ASC"),
-                PaginationBy::BeforeId { .. } => ("id < {id}", "DESC"),
-                PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
-                PaginationBy::Oldest => ("true", "ASC"),
-                PaginationBy::Newest => ("true", "DESC"),
-            },
-            #account_id = match self.account_id.as_ref().map(|a| a.as_str()) {
-                Some(ref account_id) => "AND account_id = {account_id}",
-                None => "",
-            },
-            #predecessor_id = match self.predecessor_id.as_ref().map(|p| p.as_str()) {
-                Some(ref predecessor_id) => "AND predecessor_id = {predecessor_id}",
-                None => "",
-            },
-            #testnet = match testnet {
-                true => "", // "_testnet",
-                false => "",
-            },
-        )
-        .fetch_all(pool)
-        .await
-        .map(|records| {
-            records
-                .into_iter()
-                .map(|record| {
-                    (
-                        record.id as EventId,
-                        LogTextEventData {
-                            block_height: record.block_height as u64,
-                            block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap()
-                                as u128,
-                            transaction_id: record.transaction_id.parse().unwrap(),
-                            receipt_id: record.receipt_id.parse().unwrap(),
-                            account_id: record.account_id.parse().unwrap(),
-                            predecessor_id: record.predecessor_id.parse().unwrap(),
-                            log_text: record.log_text,
-                        },
-                    )
-                })
-                .collect()
-        })
+        unimplemented!()
     }
 }
 

@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::future::Future;
 
 use actix_web::http::StatusCode;
-use near_indexer_primitives::types::BlockHeightDelta;
+use near_indexer_primitives::near_primitives::serialize::dec_format;
+use near_indexer_primitives::types::BlockHeight;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
@@ -58,20 +59,58 @@ pub trait DatabaseEventFilter {
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
         testnet: bool,
-    ) -> impl Future<Output = Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error>>;
+    ) -> impl Future<Output = Result<Vec<(EventId, <Self::Event as Event>::EventData)>, sqlx::Error>>;
 }
 
-pub const MAX_BLOCKS_PER_REQUEST: u64 = 100;
+pub const MAX_EVENTS_PER_REQUEST: u64 = 200;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct PaginationParameters {
-    #[serde(default)]
-    pub start_block_timestamp_nanosec: u64,
-    #[serde(default = "default_blocks_per_request")]
-    #[schemars(range(max = 100))]
-    pub blocks: BlockHeightDelta,
+    pub pagination_by: PaginationBy,
+    #[schemars(range(max = 200))]
+    #[serde(default = "default_events_per_request")]
+    pub limit: u64,
 }
 
-fn default_blocks_per_request() -> u64 {
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(tag = "pagination_by")]
+pub enum PaginationBy {
+    Oldest,
+    Newest,
+    BeforeBlockHeight {
+        #[serde(deserialize_with = "dec_format::deserialize")]
+        block_height: BlockHeight,
+    },
+    AfterBlockHeight {
+        #[serde(deserialize_with = "dec_format::deserialize")]
+        block_height: BlockHeight,
+    },
+    BeforeTimestamp {
+        #[serde(deserialize_with = "dec_format::deserialize")]
+        timestamp_nanosec: u128,
+    },
+    AfterTimestamp {
+        #[serde(deserialize_with = "dec_format::deserialize")]
+        timestamp_nanosec: u128,
+    },
+    BeforeId {
+        #[serde(deserialize_with = "dec_format::deserialize")]
+        id: EventId,
+    },
+    AfterId {
+        #[serde(deserialize_with = "dec_format::deserialize")]
+        id: EventId,
+    },
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub enum Order {
+    Ascending,
+    Descending,
+}
+
+pub type EventId = u64;
+
+fn default_events_per_request() -> u64 {
     10
 }

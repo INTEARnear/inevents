@@ -156,16 +156,25 @@ impl DatabaseEventFilter for DbNftTransferFilter {
             -1
         };
 
+        let contract_id = self.contract_id.as_ref().map(|c| c.as_str());
+        let old_owner_id = self.old_owner_id.as_ref().map(|o| o.as_str());
+        let new_owner_id = self.new_owner_id.as_ref().map(|n| n.as_str());
+        let involved_account_ids = self
+            .involved_account_ids
+            .as_ref()
+            .map(|ids| ids.split(',').map(|s| s.to_owned()).collect::<Vec<_>>());
+        let involved_account_ids = involved_account_ids.as_deref();
+
         sqlx_conditional_queries::conditional_query_as!(
             SqlNftTransferEventData,
             r#"
             SELECT *
             FROM nft_transfer{#testnet}
             WHERE {#time}
-                {#contract_id}
-                {#old_owner_id}
-                {#new_owner_id}
-                {#involved_account_ids}
+                AND ({contract_id}::TEXT IS NULL OR contract_id = {contract_id})
+                AND ({old_owner_id}::TEXT IS NULL OR old_owner_id = {old_owner_id})
+                AND ({new_owner_id}::TEXT IS NULL OR new_owner_id = {new_owner_id})
+                AND ({involved_account_ids}::TEXT[] IS NULL OR ARRAY[old_owner_id, new_owner_id] @> {involved_account_ids})
             ORDER BY id {#order}
             LIMIT {limit}
             "#,
@@ -179,24 +188,8 @@ impl DatabaseEventFilter for DbNftTransferFilter {
                 PaginationBy::Oldest => ("true", "ASC"),
                 PaginationBy::Newest => ("true", "DESC"),
             },
-            #contract_id = match self.contract_id.as_ref().map(|c| c.as_str()) {
-                Some(ref contract_id) => "AND contract_id = {contract_id}",
-                None => "",
-            },
-            #old_owner_id = match self.old_owner_id.as_ref().map(|o| o.as_str()) {
-                Some(ref old_owner_id) => "AND old_owner_id = {old_owner_id}",
-                None => "",
-            },
-            #new_owner_id = match self.new_owner_id.as_ref().map(|n| n.as_str()) {
-                Some(ref new_owner_id) => "AND new_owner_id = {new_owner_id}",
-                None => "",
-            },
-            #involved_account_ids = match self.involved_account_ids.as_ref().map(|ids| ids.split(',').collect::<Vec<_>>()) {
-                Some(ref involved_account_ids) => "AND ARRAY[old_owner_id, new_owner_id] @> {involved_account_ids}",
-                None => "",
-            },
             #testnet = match testnet {
-                true => "", // "_testnet",
+                true => "", //"_testnet",
                 false => "",
             },
         )
@@ -204,28 +197,28 @@ impl DatabaseEventFilter for DbNftTransferFilter {
         .await
         .map(|records| {
             records
-                .into_iter()
-                .map(|record| {
-                    (
-                        record.id as EventId,
-                        NftTransferEventData {
-                            old_owner_id: record.old_owner_id.parse().unwrap(),
-                            new_owner_id: record.new_owner_id.parse().unwrap(),
-                            token_ids: record.token_ids,
-                            memo: record.memo,
-                            token_prices_near: record.token_prices_near.iter().map(|price| if price.to_string() == "0" { None } else { Some(num_traits::ToPrimitive::to_u128(price).unwrap_or_else(|| {
-                                log::warn!("Failed to convert number {} to u128 on {}:{}", &price, file!(), line!());
-                                Default::default()
-                            })) }).collect(),
-                            transaction_id: record.transaction_id.parse().unwrap(),
-                            receipt_id: record.receipt_id.parse().unwrap(),
-                            block_height: record.block_height as u64,
-                            block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-                            contract_id: record.contract_id.parse().unwrap(),
-                        },
-                    )
-                })
-                .collect()
+            .into_iter()
+            .map(|record| {
+                (
+                record.id as EventId,
+                NftTransferEventData {
+                    old_owner_id: record.old_owner_id.parse().unwrap(),
+                    new_owner_id: record.new_owner_id.parse().unwrap(),
+                    token_ids: record.token_ids,
+                    memo: record.memo,
+                    token_prices_near: record.token_prices_near.iter().map(|price| if price.to_string() == "0" { None } else { Some(num_traits::ToPrimitive::to_u128(price).unwrap_or_else(|| {
+                    log::warn!("Failed to convert number {} to u128 on {}:{}", &price, file!(), line!());
+                    Default::default()
+                    })) }).collect(),
+                    transaction_id: record.transaction_id.parse().unwrap(),
+                    receipt_id: record.receipt_id.parse().unwrap(),
+                    block_height: record.block_height as u64,
+                    block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
+                    contract_id: record.contract_id.parse().unwrap(),
+                },
+                )
+            })
+            .collect()
         })
     }
 }

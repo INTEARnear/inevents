@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::{
-    collections::HashSet,
     fmt::{self, Display, Formatter},
     fs::File,
     io::BufReader,
-    time::{SystemTime, UNIX_EPOCH},
 };
 
-use crate::events::event::{PaginationParameters, MAX_BLOCKS_PER_REQUEST};
+use crate::events::event::{PaginationParameters, MAX_EVENTS_PER_REQUEST};
 
 use super::{EventCollection, EventModule, RawEvent};
 use actix_cors::Cors;
@@ -256,36 +254,18 @@ fn create_route(event: RawEvent, testnet: bool) -> impl HttpServiceFactory {
         move |state: web::Data<AppState>,
               pagination: web::Query<PaginationParameters>,
               request: HttpRequest| async move {
-            let blocks = pagination.blocks;
-            if blocks > MAX_BLOCKS_PER_REQUEST {
+            let limit = pagination.limit;
+            if limit > MAX_EVENTS_PER_REQUEST {
                 return Err(AppError::TooManyBlocks {
-                    requested: blocks,
-                    max: MAX_BLOCKS_PER_REQUEST,
+                    requested: limit,
+                    max: MAX_EVENTS_PER_REQUEST,
                 });
             }
             (event.query_paginated)(pagination.0, state.pg_pool.clone(), request, testnet)
                 .await
                 .map(|res| {
-                    // Cache responses if only one block is requested, returned data is complete,
-                    // and the returned blocks are all older than 10 seconds.
-                    let mut block_timestamps_nanos = HashSet::new();
-                    for event in res.iter() {
-                        if let Some(serde_json::Value::String(s)) =
-                            event.get("block_timestamp_nanosec")
-                        {
-                            if let Ok(ns) = s.parse::<u128>() {
-                                block_timestamps_nanos.insert(ns);
-                            }
-                        }
-                    }
-                    let now = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_nanos();
-                    let max_ns = block_timestamps_nanos.iter().max().unwrap_or(&0);
-                    let cache_control = if now - max_ns > 10 * 1_000_000_000
-                        && block_timestamps_nanos.len() as u64 == blocks
-                    {
+                    // Cache responses if all `limit` events are returned
+                    let cache_control = if res.len() == limit as usize {
                         header::CacheControl(vec![
                             CacheDirective::Public,
                             CacheDirective::MaxAge(60 * 10),

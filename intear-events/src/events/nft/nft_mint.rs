@@ -141,14 +141,16 @@ impl DatabaseEventFilter for DbNftMintFilter {
             -1
         };
 
+        let contract_id = self.contract_id.as_ref().map(|c| c.as_str());
+        let owner_id = self.owner_id.as_ref().map(|o| o.as_str());
         sqlx_conditional_queries::conditional_query_as!(
             SqlNftMintEventData,
             r#"
             SELECT *
             FROM nft_mint{#testnet}
             WHERE {#time}
-                {#contract_id}
-                {#owner_id}
+                AND ({contract_id}::TEXT IS NULL OR contract_id = {contract_id})
+                AND ({owner_id}::TEXT IS NULL OR owner_id = {owner_id})
             ORDER BY id {#order}
             LIMIT {limit}
             "#,
@@ -161,14 +163,6 @@ impl DatabaseEventFilter for DbNftMintFilter {
                 PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
                 PaginationBy::Oldest => ("true", "ASC"),
                 PaginationBy::Newest => ("true", "DESC"),
-            },
-            #contract_id = match self.contract_id.as_ref().map(|c| c.as_str()) {
-                Some(ref contract_id) => "AND contract_id = {contract_id}",
-                None => "",
-            },
-            #owner_id = match self.owner_id.as_ref().map(|o| o.as_str()) {
-                Some(ref owner_id) => "AND owner_id = {owner_id}",
-                None => "",
             },
             #testnet = match testnet {
                 true => "", // "_testnet",

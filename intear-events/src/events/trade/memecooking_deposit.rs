@@ -174,14 +174,16 @@ impl DatabaseEventFilter for DbMemeCookingDepositFilter {
             -1
         };
 
+        let meme_id = self.meme_id.map(|meme_id| meme_id as i64);
+        let trader = self.trader_account_id.as_ref().map(|t| t.as_str());
         sqlx_conditional_queries::conditional_query_as!(
             SqlMemeCookingDepositEventData,
             r#"
             SELECT *
             FROM memecooking_deposit{#testnet}
             WHERE {#time}
-                {#trader}
-                {#meme_id}
+                AND ({meme_id}::BIGINT IS NULL OR meme_id = {meme_id})
+                AND ({trader}::TEXT IS NULL OR trader = {trader})
             ORDER BY id {#order}
             LIMIT {limit}
             "#,
@@ -194,14 +196,6 @@ impl DatabaseEventFilter for DbMemeCookingDepositFilter {
                 PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
                 PaginationBy::Oldest => ("true", "ASC"),
                 PaginationBy::Newest => ("true", "DESC"),
-            },
-            #trader = match self.trader_account_id.as_ref().map(|t| t.as_str()) {
-                Some(ref trader) => "AND trader = {trader}",
-                None => "",
-            },
-            #meme_id = match self.meme_id {
-                Some(meme_id) => "AND meme_id = {meme_id}",
-                None => "",
             },
             #testnet = match testnet {
                 true => "_testnet",
