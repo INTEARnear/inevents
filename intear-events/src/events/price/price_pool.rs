@@ -1,3 +1,4 @@
+use inevents::events::event::{EventId, PaginationBy};
 use inindexer::near_indexer_primitives::types::{AccountId, BlockHeight};
 use inindexer::near_utils::dec_format;
 use schemars::JsonSchema;
@@ -116,48 +117,113 @@ impl DatabaseEventFilter for DbPricePoolFilter {
         &self,
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
-        _testnet: bool,
-    ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
-        let involved_token_account_ids = self
+        testnet: bool,
+    ) -> Result<Vec<(EventId, <Self::Event as Event>::EventData)>, sqlx::Error> {
+        let limit = pagination.limit as i64;
+
+        #[derive(Debug, sqlx::FromRow)]
+        struct SqlPricePoolEventData {
+            id: i64,
+            timestamp: chrono::DateTime<chrono::Utc>,
+            block_height: i64,
+            pool_id: String,
+            token0: String,
+            token1: String,
+            token0_in_1_token1: BigDecimal,
+            token1_in_1_token0: BigDecimal,
+        }
+
+        let block_height = if let PaginationBy::BeforeBlockHeight { block_height }
+        | PaginationBy::AfterBlockHeight { block_height } =
+            pagination.pagination_by
+        {
+            block_height as i64
+        } else {
+            -1
+        };
+
+        let timestamp = if let PaginationBy::BeforeTimestamp { timestamp_nanosec }
+        | PaginationBy::AfterTimestamp { timestamp_nanosec } =
+            pagination.pagination_by
+        {
+            chrono::DateTime::from_timestamp(
+                (timestamp_nanosec / 1_000_000_000) as i64,
+                (timestamp_nanosec % 1_000_000_000) as u32,
+            )
+        } else {
+            chrono::DateTime::from_timestamp(0, 0)
+        };
+
+        let id = if let PaginationBy::BeforeId { id } | PaginationBy::AfterId { id } =
+            pagination.pagination_by
+        {
+            id as i32
+        } else {
+            -1
+        };
+
+        let involved_token_account_ids = &self
             .involved_token_account_ids
             .as_ref()
             .map(|s| s.split(',').map(|s| s.to_string()).collect::<Vec<_>>())
             .unwrap_or_default();
-        sqlx::query!(
+
+        sqlx_conditional_queries::conditional_query_as!(
+            SqlPricePoolEventData,
             r#"
-            WITH blocks AS (
-                SELECT DISTINCT timestamp as t
-                FROM price_pool
-                WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                    AND ($3::TEXT IS NULL OR pool_id = $3)
-                    AND ($4::TEXT[] IS NULL OR ARRAY[token0, token1] @> $4)
-                ORDER BY t
-                LIMIT $2
-            )
-            SELECT timestamp, block_height, pool_id, token0, token1, token0_in_1_token1, token1_in_1_token0
-            FROM price_pool
-            INNER JOIN blocks ON timestamp = blocks.t
-            WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                AND ($3::TEXT IS NULL OR pool_id = $3)
-                AND ($4::TEXT[] IS NULL OR ARRAY[token0, token1] @> $4)
-            ORDER BY timestamp ASC
+            SELECT *
+            FROM price_pool{#testnet}
+            WHERE {#time}
+                {#pool_id}
+                {#involved_tokens}
+            ORDER BY id {#order}
+            LIMIT {limit}
             "#,
-            pagination.start_block_timestamp_nanosec as i64,
-            pagination.blocks as i64,
-            self.pool_id.as_ref().map(|s| s.as_str()),
-            involved_token_account_ids.as_slice(),
+            #(time, order) = match &pagination.pagination_by {
+                PaginationBy::BeforeBlockHeight { .. } => ("block_height < {block_height}", "DESC"),
+                PaginationBy::AfterBlockHeight { .. } => ("block_height > {block_height}", "ASC"),
+                PaginationBy::BeforeTimestamp { .. } => ("timestamp < {timestamp}", "DESC"),
+                PaginationBy::AfterTimestamp { .. } => ("timestamp > {timestamp}", "ASC"),
+                PaginationBy::BeforeId { .. } => ("id < {id}", "DESC"),
+                PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
+                PaginationBy::Oldest => ("true", "ASC"),
+                PaginationBy::Newest => ("true", "DESC"),
+            },
+            #pool_id = match self.pool_id.as_ref().map(|p| p.as_str()) {
+                Some(ref pool_id) => "AND pool_id = {pool_id}",
+                None => "",
+            },
+            #involved_tokens = match involved_token_account_ids.is_empty() {
+                true => "",
+                false => "AND ARRAY[token0, token1] @> {involved_token_account_ids}"
+            },
+            #testnet = match testnet {
+                true => "", // "_testnet",
+                false => "",
+            },
         )
-        .map(|record| PricePoolEventData {
-            block_height: record.block_height as u64,
-            pool_id: record.pool_id,
-            token0: record.token0.parse().unwrap(),
-            token1: record.token1.parse().unwrap(),
-            token0_in_1_token1: record.token0_in_1_token1,
-            token1_in_1_token0: record.token1_in_1_token0,
-            timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-        })
         .fetch_all(pool)
         .await
+        .map(|records| {
+            records
+                .into_iter()
+                .map(|record| {
+                    (
+                        record.id as EventId,
+                        PricePoolEventData {
+                            block_height: record.block_height as u64,
+                            pool_id: record.pool_id,
+                            token0: record.token0.parse().unwrap(),
+                            token1: record.token1.parse().unwrap(),
+                            token0_in_1_token1: record.token0_in_1_token1,
+                            token1_in_1_token0: record.token1_in_1_token0,
+                            timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap()
+                                as u128,
+                        },
+                    )
+                })
+                .collect()
+        })
     }
 }
 

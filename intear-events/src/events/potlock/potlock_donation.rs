@@ -1,3 +1,4 @@
+use inevents::events::event::{EventId, PaginationBy};
 use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
@@ -125,57 +126,153 @@ impl DatabaseEventFilter for DbPotlockDonationFilter {
         &self,
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
-        _testnet: bool,
-    ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
-        sqlx::query!(r#"
-            WITH blocks AS (
-                SELECT DISTINCT timestamp as t
-                FROM potlock_donation
-                WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                    AND ($3::TEXT IS NULL OR project_id = $3)
-                    AND ($4::TEXT IS NULL OR donor_id = $4)
-                    AND ($5::TEXT IS NULL OR referrer_id = $5)
-                ORDER BY t
-                LIMIT $2
+        testnet: bool,
+    ) -> Result<Vec<(EventId, <Self::Event as Event>::EventData)>, sqlx::Error> {
+        let limit = pagination.limit as i64;
+
+        #[derive(Debug, sqlx::FromRow)]
+        struct SqlPotlockDonationEventData {
+            transaction_id: String,
+            receipt_id: String,
+            block_height: i64,
+            timestamp: chrono::DateTime<chrono::Utc>,
+            donation_id: i64,
+            donor_id: String,
+            total_amount: BigDecimal,
+            ft_id: String,
+            message: Option<String>,
+            donated_at: chrono::DateTime<chrono::Utc>,
+            project_id: String,
+            protocol_fee: BigDecimal,
+            referrer_id: Option<String>,
+            referrer_fee: Option<BigDecimal>,
+        }
+
+        let block_height = if let PaginationBy::BeforeBlockHeight { block_height }
+        | PaginationBy::AfterBlockHeight { block_height } =
+            pagination.pagination_by
+        {
+            block_height as i64
+        } else {
+            -1
+        };
+
+        let timestamp = if let PaginationBy::BeforeTimestamp { timestamp_nanosec }
+        | PaginationBy::AfterTimestamp { timestamp_nanosec } =
+            pagination.pagination_by
+        {
+            chrono::DateTime::from_timestamp(
+                (timestamp_nanosec / 1_000_000_000) as i64,
+                (timestamp_nanosec % 1_000_000_000) as u32,
             )
-            SELECT transaction_id, receipt_id, block_height, timestamp, donation_id, donor_id, total_amount, ft_id, message, donated_at, project_id, protocol_fee, referrer_id, referrer_fee
-            FROM potlock_donation
-            INNER JOIN blocks ON timestamp = blocks.t
-            WHERE ($3::TEXT IS NULL OR project_id = $3)
-                AND ($4::TEXT IS NULL OR donor_id = $4)
-                AND ($5::TEXT IS NULL OR referrer_id = $5)
-            ORDER BY timestamp ASC
+        } else {
+            chrono::DateTime::from_timestamp(0, 0)
+        };
+
+        let id = if let PaginationBy::BeforeId { id } | PaginationBy::AfterId { id } =
+            pagination.pagination_by
+        {
+            id as i32
+        } else {
+            -1
+        };
+
+        sqlx_conditional_queries::conditional_query_as!(
+            SqlPotlockDonationEventData,
+            r#"
+            SELECT *
+            FROM potlock_donation{#testnet}
+            WHERE {#time}
+                {#project_id}
+                {#donor_id}
+                {#referrer_id}
+            ORDER BY id {#order}
+            LIMIT {limit}
             "#,
-            pagination.start_block_timestamp_nanosec as i64,
-            pagination.blocks as i64,
-            self.project_id.as_ref().map(|id| id.as_str()),
-            self.donor_id.as_ref().map(|id| id.as_str()),
-            self.referrer_id.as_ref().map(|id| id.as_str()),
-        ).map(|record| PotlockDonationEventData {
-            donation_id: record.donation_id as u64,
-            donor_id: record.donor_id.parse().unwrap(),
-            total_amount: num_traits::ToPrimitive::to_u128(&record.total_amount).unwrap_or_else(|| {
-                log::warn!("Failed to convert number {} to u128 on {}:{}", &record.total_amount, file!(), line!());
-                Default::default()
-            }),
-            ft_id: record.ft_id.parse().unwrap(),
-            message: record.message,
-            donated_at: record.donated_at,
-            project_id: record.project_id.parse().unwrap(),
-            protocol_fee: num_traits::ToPrimitive::to_u128(&record.protocol_fee).unwrap_or_else(|| {
-                log::warn!("Failed to convert number {} to u128 on {}:{}", &record.protocol_fee, file!(), line!());
-                Default::default()
-            }),
-            referrer_id: record.referrer_id.as_ref().map(|id| id.parse().unwrap()),
-            referrer_fee: record.referrer_fee.map(|fee| num_traits::ToPrimitive::to_u128(&fee).unwrap_or_else(|| {
-                log::warn!("Failed to convert number {} to u128 on {}:{}", &fee, file!(), line!());
-                Default::default()
-            })),
-            transaction_id: record.transaction_id.parse().unwrap(),
-            receipt_id: record.receipt_id.parse().unwrap(),
-            block_height: record.block_height as u64,
-            block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-        }).fetch_all(pool).await
+            #(time, order) = match &pagination.pagination_by {
+                PaginationBy::BeforeBlockHeight { .. } => ("block_height < {block_height}", "DESC"),
+                PaginationBy::AfterBlockHeight { .. } => ("block_height > {block_height}", "ASC"),
+                PaginationBy::BeforeTimestamp { .. } => ("timestamp < {timestamp}", "DESC"),
+                PaginationBy::AfterTimestamp { .. } => ("timestamp > {timestamp}", "ASC"),
+                PaginationBy::BeforeId { .. } => ("id < {id}", "DESC"),
+                PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
+                PaginationBy::Oldest => ("true", "ASC"),
+                PaginationBy::Newest => ("true", "DESC"),
+            },
+            #project_id = match self.project_id.as_ref().map(|id| id.as_str()) {
+                Some(ref project_id) => "AND project_id = {project_id}",
+                None => "",
+            },
+            #donor_id = match self.donor_id.as_ref().map(|id| id.as_str()) {
+                Some(ref donor_id) => "AND donor_id = {donor_id}",
+                None => "",
+            },
+            #referrer_id = match self.referrer_id.as_ref().map(|id| id.as_str()) {
+                Some(ref referrer_id) => "AND referrer_id = {referrer_id}",
+                None => "",
+            },
+            #testnet = match testnet {
+                true => "", // "_testnet",
+                false => "",
+            },
+        )
+        .fetch_all(pool)
+        .await
+        .map(|records| {
+            records
+                .into_iter()
+                .map(|record| {
+                    (
+                        record.donation_id as EventId,
+                        PotlockDonationEventData {
+                            donation_id: record.donation_id as u64,
+                            donor_id: record.donor_id.parse().unwrap(),
+                            total_amount: num_traits::ToPrimitive::to_u128(&record.total_amount)
+                                .unwrap_or_else(|| {
+                                    log::warn!(
+                                        "Failed to convert number {} to u128 on {}:{}",
+                                        &record.total_amount,
+                                        file!(),
+                                        line!()
+                                    );
+                                    Default::default()
+                                }),
+                            ft_id: record.ft_id.parse().unwrap(),
+                            message: record.message,
+                            donated_at: record.donated_at,
+                            project_id: record.project_id.parse().unwrap(),
+                            protocol_fee: num_traits::ToPrimitive::to_u128(&record.protocol_fee)
+                                .unwrap_or_else(|| {
+                                    log::warn!(
+                                        "Failed to convert number {} to u128 on {}:{}",
+                                        &record.protocol_fee,
+                                        file!(),
+                                        line!()
+                                    );
+                                    Default::default()
+                                }),
+                            referrer_id: record.referrer_id.as_ref().map(|id| id.parse().unwrap()),
+                            referrer_fee: record.referrer_fee.map(|fee| {
+                                num_traits::ToPrimitive::to_u128(&fee).unwrap_or_else(|| {
+                                    log::warn!(
+                                        "Failed to convert number {} to u128 on {}:{}",
+                                        &fee,
+                                        file!(),
+                                        line!()
+                                    );
+                                    Default::default()
+                                })
+                            }),
+                            transaction_id: record.transaction_id.parse().unwrap(),
+                            receipt_id: record.receipt_id.parse().unwrap(),
+                            block_height: record.block_height as u64,
+                            block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap()
+                                as u128,
+                        },
+                    )
+                })
+                .collect()
+        })
     }
 }
 

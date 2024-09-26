@@ -1,3 +1,4 @@
+use inevents::events::event::{EventId, PaginationBy};
 use inindexer::near_indexer_primitives::types::{AccountId, BlockHeight};
 use inindexer::near_indexer_primitives::CryptoHash;
 use inindexer::near_utils::dec_format;
@@ -116,64 +117,109 @@ impl DatabaseEventFilter for DbBlockInfoFilter {
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
         testnet: bool,
-    ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
-        if testnet {
-            sqlx::query!(
-                r#"
-                SELECT timestamp, block_height, block_hash, block_producer, transaction_count, receipt_count
-                FROM block_info_testnet
-                WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                    AND ($3::BIGINT IS NULL OR block_height = $3)
-                    AND ($4::TEXT IS NULL OR block_hash = $4)
-                    AND ($5::TEXT IS NULL OR block_producer = $5)
-                ORDER BY timestamp ASC
-                LIMIT $2
-                "#,
-                pagination.start_block_timestamp_nanosec as i64,
-                pagination.blocks as i64,
-                self.block_height.map(|h| h as i64),
-                self.block_hash.as_ref().map(|s| s.to_string()),
-                self.block_producer.as_ref().map(|s| s.as_str())
-            )
-            .map(|record| BlockInfoEventData {
-                block_height: record.block_height as u64,
-                block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-                block_hash: record.block_hash.parse().unwrap(),
-                block_producer: record.block_producer.parse().unwrap(),
-                transaction_count: record.transaction_count as u64,
-                receipt_count: record.receipt_count as u64,
-            })
-            .fetch_all(pool)
-            .await
-        } else {
-            sqlx::query!(
-                r#"
-                SELECT timestamp, block_height, block_hash, block_producer, transaction_count, receipt_count
-                FROM block_info
-                WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                    AND ($3::BIGINT IS NULL OR block_height = $3)
-                    AND ($4::TEXT IS NULL OR block_hash = $4)
-                    AND ($5::TEXT IS NULL OR block_producer = $5)
-                ORDER BY timestamp ASC
-                LIMIT $2
-                "#,
-                pagination.start_block_timestamp_nanosec as i64,
-                pagination.blocks as i64,
-                self.block_height.map(|h| h as i64),
-                self.block_hash.as_ref().map(|s| s.to_string()),
-                self.block_producer.as_ref().map(|s| s.as_str())
-            )
-            .map(|record| BlockInfoEventData {
-                block_height: record.block_height as u64,
-                block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-                block_hash: record.block_hash.parse().unwrap(),
-                block_producer: record.block_producer.parse().unwrap(),
-                transaction_count: record.transaction_count as u64,
-                receipt_count: record.receipt_count as u64,
-            })
-            .fetch_all(pool)
-            .await
+    ) -> Result<Vec<(EventId, <Self::Event as Event>::EventData)>, sqlx::Error> {
+        let limit = pagination.limit as i64;
+
+        #[derive(Debug, sqlx::FromRow)]
+        struct SqlBlockInfoEventData {
+            id: i64,
+            timestamp: chrono::DateTime<chrono::Utc>,
+            block_height: i64,
+            block_hash: String,
+            block_producer: String,
+            transaction_count: i64,
+            receipt_count: i64,
         }
+
+        let block_height = if let PaginationBy::BeforeBlockHeight { block_height }
+        | PaginationBy::AfterBlockHeight { block_height } =
+            pagination.pagination_by
+        {
+            block_height as i64
+        } else {
+            -1
+        };
+
+        let timestamp = if let PaginationBy::BeforeTimestamp { timestamp_nanosec }
+        | PaginationBy::AfterTimestamp { timestamp_nanosec } =
+            pagination.pagination_by
+        {
+            chrono::DateTime::from_timestamp(
+                (timestamp_nanosec / 1_000_000_000) as i64,
+                (timestamp_nanosec % 1_000_000_000) as u32,
+            )
+        } else {
+            chrono::DateTime::from_timestamp(0, 0)
+        };
+
+        let id = if let PaginationBy::BeforeId { id } | PaginationBy::AfterId { id } =
+            pagination.pagination_by
+        {
+            id as i32
+        } else {
+            -1
+        };
+
+        sqlx_conditional_queries::conditional_query_as!(
+            SqlBlockInfoEventData,
+            r#"
+            SELECT *
+            FROM block_info{#testnet}
+            WHERE {#time}
+                {#block_height}
+                {#block_hash}
+                {#block_producer}
+            ORDER BY id {#order}
+            LIMIT {limit}
+            "#,
+            #(time, order) = match &pagination.pagination_by {
+                PaginationBy::BeforeBlockHeight { .. } => ("block_height < {block_height}", "DESC"),
+                PaginationBy::AfterBlockHeight { .. } => ("block_height > {block_height}", "ASC"),
+                PaginationBy::BeforeTimestamp { .. } => ("timestamp < {timestamp}", "DESC"),
+                PaginationBy::AfterTimestamp { .. } => ("timestamp > {timestamp}", "ASC"),
+                PaginationBy::BeforeId { .. } => ("id < {id}", "DESC"),
+                PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
+                PaginationBy::Oldest => ("true", "ASC"),
+                PaginationBy::Newest => ("true", "DESC"),
+            },
+            #block_height = match self.block_height {
+                Some(ref block_height) => "AND block_height = {block_height}",
+                None => "",
+            },
+            #block_hash = match self.block_hash.as_ref().map(|h| h.as_str()) {
+                Some(ref block_hash) => "AND block_hash = {block_hash}",
+                None => "",
+            },
+            #block_producer = match self.block_producer.as_ref().map(|p| p.as_str()) {
+                Some(ref block_producer) => "AND block_producer = {block_producer}",
+                None => "",
+            },
+            #testnet = match testnet {
+                true => "_testnet",
+                false => "",
+            },
+        )
+        .fetch_all(pool)
+        .await
+        .map(|records| {
+            records
+                .into_iter()
+                .map(|record| {
+                    (
+                        record.id as EventId,
+                        BlockInfoEventData {
+                            block_height: record.block_height as u64,
+                            block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap()
+                                as u128,
+                            block_hash: record.block_hash.parse().unwrap(),
+                            block_producer: record.block_producer.parse().unwrap(),
+                            transaction_count: record.transaction_count as u64,
+                            receipt_count: record.receipt_count as u64,
+                        },
+                    )
+                })
+                .collect()
+        })
     }
 }
 

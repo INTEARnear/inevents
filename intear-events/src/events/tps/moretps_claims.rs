@@ -1,3 +1,4 @@
+use inevents::events::event::{EventId, PaginationBy};
 use inindexer::near_indexer_primitives::types::{AccountId, BlockHeight};
 use inindexer::near_indexer_primitives::CryptoHash;
 use inindexer::near_utils::dec_format;
@@ -132,96 +133,119 @@ impl DatabaseEventFilter for DbMoreTpsClaimFilter {
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
         testnet: bool,
-    ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
-        if testnet {
-            sqlx::query!(
-                r#"
-                WITH blocks AS (
-                    SELECT DISTINCT timestamp as t
-                    FROM moretps_testnet
-                    WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                        AND ($3::TEXT IS NULL OR claimed_account_id = $3)
-                        AND ($4::TEXT IS NULL OR claimed_parent_account_id = $4)
-                        AND ($5::TEXT IS NULL OR round_account_id = $5)
-                        AND ($6::TEXT IS NULL OR round_parent_account_id = $6)
-                    ORDER BY t
-                    LIMIT $2
-                )
-                SELECT timestamp, block_height, receipt_id, transaction_id, claimed_account_id, claimed_parent_account_id, round_account_id, round_parent_account_id, is_success
-                FROM moretps_testnet
-                INNER JOIN blocks ON timestamp = blocks.t
-                WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                    AND ($3::TEXT IS NULL OR claimed_account_id = $3)
-                    AND ($4::TEXT IS NULL OR claimed_parent_account_id = $4)
-                    AND ($5::TEXT IS NULL OR round_account_id = $5)
-                    AND ($6::TEXT IS NULL OR round_parent_account_id = $6)
-                ORDER BY timestamp ASC
-                "#,
-                pagination.start_block_timestamp_nanosec as i64,
-                pagination.blocks as i64,
-                self.claim_account_id.as_ref().map(|s| s.as_str()),
-                self.claim_parent_account_id.as_ref().map(|s| s.as_str()),
-                self.round_account_id.as_ref().map(|s| s.as_str()),
-                self.round_parent_account_id.as_ref().map(|s| s.as_str())
-            )
-            .map(|record| MoreTpsClaimEventData {
-                block_height: record.block_height as u64,
-                block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-                receipt_id: record.receipt_id.parse().unwrap(),
-                transaction_id: record.transaction_id.parse().unwrap(),
-                claimed_account_id: record.claimed_account_id.parse().unwrap(),
-                claimed_parent_account_id: record.claimed_parent_account_id.parse().unwrap(),
-                round_account_id: record.round_account_id.parse().unwrap(),
-                round_parent_account_id: record.round_parent_account_id.parse().unwrap(),
-                is_success: record.is_success
-            })
-            .fetch_all(pool)
-            .await
-        } else {
-            sqlx::query!(
-                r#"
-                WITH blocks AS (
-                    SELECT DISTINCT timestamp as t
-                    FROM moretps
-                    WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                        AND ($3::TEXT IS NULL OR claimed_account_id = $3)
-                        AND ($4::TEXT IS NULL OR claimed_parent_account_id = $4)
-                        AND ($5::TEXT IS NULL OR round_account_id = $5)
-                        AND ($6::TEXT IS NULL OR round_parent_account_id = $6)
-                    ORDER BY t
-                    LIMIT $2
-                )
-                SELECT timestamp, block_height, receipt_id, transaction_id, claimed_account_id, claimed_parent_account_id, round_account_id, round_parent_account_id, is_success
-                FROM moretps
-                INNER JOIN blocks ON timestamp = blocks.t
-                WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                    AND ($3::TEXT IS NULL OR claimed_account_id = $3)
-                    AND ($4::TEXT IS NULL OR claimed_parent_account_id = $4)
-                    AND ($5::TEXT IS NULL OR round_account_id = $5)
-                    AND ($6::TEXT IS NULL OR round_parent_account_id = $6)
-                ORDER BY timestamp ASC
-                "#,
-                pagination.start_block_timestamp_nanosec as i64,
-                pagination.blocks as i64,
-                self.claim_account_id.as_ref().map(|s| s.as_str()),
-                self.claim_parent_account_id.as_ref().map(|s| s.as_str()),
-                self.round_account_id.as_ref().map(|s| s.as_str()),
-                self.round_parent_account_id.as_ref().map(|s| s.as_str())
-            )
-            .map(|record| MoreTpsClaimEventData {
-                block_height: record.block_height as u64,
-                block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-                receipt_id: record.receipt_id.parse().unwrap(),
-                transaction_id: record.transaction_id.parse().unwrap(),
-                claimed_account_id: record.claimed_account_id.parse().unwrap(),
-                claimed_parent_account_id: record.claimed_parent_account_id.parse().unwrap(),
-                round_account_id: record.round_account_id.parse().unwrap(),
-                round_parent_account_id: record.round_parent_account_id.parse().unwrap(),
-                is_success: record.is_success
-            })
-            .fetch_all(pool)
-            .await
+    ) -> Result<Vec<(EventId, <Self::Event as Event>::EventData)>, sqlx::Error> {
+        let limit = pagination.limit as i64;
+
+        #[derive(Debug, sqlx::FromRow)]
+        struct SqlMoreTpsClaimEventData {
+            id: i64,
+            timestamp: chrono::DateTime<chrono::Utc>,
+            block_height: i64,
+            receipt_id: String,
+            transaction_id: String,
+            claimed_account_id: String,
+            claimed_parent_account_id: String,
+            round_account_id: String,
+            round_parent_account_id: String,
+            is_success: bool,
         }
+
+        let block_height = if let PaginationBy::BeforeBlockHeight { block_height }
+        | PaginationBy::AfterBlockHeight { block_height } =
+            pagination.pagination_by
+        {
+            block_height as i64
+        } else {
+            -1
+        };
+
+        let timestamp = if let PaginationBy::BeforeTimestamp { timestamp_nanosec }
+        | PaginationBy::AfterTimestamp { timestamp_nanosec } =
+            pagination.pagination_by
+        {
+            chrono::DateTime::from_timestamp(
+                (timestamp_nanosec / 1_000_000_000) as i64,
+                (timestamp_nanosec % 1_000_000_000) as u32,
+            )
+        } else {
+            chrono::DateTime::from_timestamp(0, 0)
+        };
+
+        let id = if let PaginationBy::BeforeId { id } | PaginationBy::AfterId { id } =
+            pagination.pagination_by
+        {
+            id as i32
+        } else {
+            -1
+        };
+
+        sqlx_conditional_queries::conditional_query_as!(
+            SqlMoreTpsClaimEventData,
+            r#"
+            SELECT *
+            FROM moretps{#testnet}
+            WHERE {#time}
+                {#claimed_account_id}
+                {#claimed_parent_account_id}
+                {#round_account_id}
+                {#round_parent_account_id}
+            ORDER BY id {#order}
+            LIMIT {limit}
+            "#,
+            #(time, order) = match &pagination.pagination_by {
+                PaginationBy::BeforeBlockHeight { .. } => ("block_height < {block_height}", "DESC"),
+                PaginationBy::AfterBlockHeight { .. } => ("block_height > {block_height}", "ASC"),
+                PaginationBy::BeforeTimestamp { .. } => ("timestamp < {timestamp}", "DESC"),
+                PaginationBy::AfterTimestamp { .. } => ("timestamp > {timestamp}", "ASC"),
+                PaginationBy::BeforeId { .. } => ("id < {id}", "DESC"),
+                PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
+                PaginationBy::Oldest => ("true", "ASC"),
+                PaginationBy::Newest => ("true", "DESC"),
+            },
+            #claimed_account_id = match self.claim_account_id.as_ref().map(|s| s.as_str()) {
+                Some(ref claimed_account_id) => "AND claimed_account_id = {claimed_account_id}",
+                None => "",
+            },
+            #claimed_parent_account_id = match self.claim_parent_account_id.as_ref().map(|s| s.as_str()) {
+                Some(ref claimed_parent_account_id) => "AND claimed_parent_account_id = {claimed_parent_account_id}",
+                None => "",
+            },
+            #round_account_id = match self.round_account_id.as_ref().map(|s| s.as_str()) {
+                Some(ref round_account_id) => "AND round_account_id = {round_account_id}",
+                None => "",
+            },
+            #round_parent_account_id = match self.round_parent_account_id.as_ref().map(|s| s.as_str()) {
+                Some(ref round_parent_account_id) => "AND round_parent_account_id = {round_parent_account_id}",
+                None => "",
+            },
+            #testnet = match testnet {
+                true => "_testnet",
+                false => "",
+            },
+        )
+        .fetch_all(pool)
+        .await
+        .map(|records| {
+            records
+                .into_iter()
+                .map(|record| {
+                    (
+                        record.id as EventId,
+                        MoreTpsClaimEventData {
+                            block_height: record.block_height as u64,
+                            block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
+                            receipt_id: record.receipt_id.parse().unwrap(),
+                            transaction_id: record.transaction_id.parse().unwrap(),
+                            claimed_account_id: record.claimed_account_id.parse().unwrap(),
+                            claimed_parent_account_id: record.claimed_parent_account_id.parse().unwrap(),
+                            round_account_id: record.round_account_id.parse().unwrap(),
+                            round_parent_account_id: record.round_parent_account_id.parse().unwrap(),
+                            is_success: record.is_success,
+                        },
+                    )
+                })
+                .collect()
+        })
     }
 }
 

@@ -1,3 +1,4 @@
+use inevents::events::event::{EventId, PaginationBy};
 use std::collections::HashMap;
 
 use inindexer::near_indexer_primitives::types::{AccountId, BlockHeight};
@@ -178,95 +179,110 @@ impl DatabaseEventFilter for DbTradeSwapFilter {
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
         testnet: bool,
-    ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
-        let involved_token_account_ids = self
-            .involved_token_account_ids
-            .as_ref()
-            .map(|s| s.split(',').map(|s| s.to_string()).collect::<Vec<_>>())
-            .unwrap_or_default();
-        if testnet {
-            sqlx::query!(
-                r#"
-                WITH blocks AS (
-                    SELECT DISTINCT timestamp as t
-                    FROM trade_swap_testnet
-                    WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                        AND ($3::TEXT IS NULL OR trader = $3)
-                        AND ($4::TEXT[] IS NULL OR balance_changes ?& $4)
-                    ORDER BY t
-                    LIMIT $2
-                )
-                SELECT transaction_id, receipt_id, block_height, timestamp, trader, balance_changes
-                FROM trade_swap_testnet
-                INNER JOIN blocks ON timestamp = blocks.t
-                WHERE ($3::TEXT IS NULL OR trader = $3)
-                    AND ($4::TEXT[] IS NULL OR balance_changes ?& $4)
-                ORDER BY timestamp ASC
-                "#,
-                pagination.start_block_timestamp_nanosec as i64,
-                pagination.blocks as i64,
-                self.trader_account_id.as_ref().map(|id| id.to_string()),
-                involved_token_account_ids.as_slice(),
-            )
-            .map(|record| TradeSwapEventData {
-                trader: record.trader.parse().unwrap(),
-                transaction_id: record.transaction_id.parse().unwrap(),
-                receipt_id: record.receipt_id.parse().unwrap(),
-                block_height: record.block_height as u64,
-                block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-                balance_changes: {
-                    let balance_changes: HashMap<AccountId, String> =
-                        serde_json::from_value(record.balance_changes).unwrap();
-                    balance_changes
-                        .into_iter()
-                        .map(|(k, v)| (k, v.parse().unwrap()))
-                        .collect()
-                },
-            })
-            .fetch_all(pool)
-            .await
-        } else {
-            sqlx::query!(
-                r#"
-                WITH blocks AS (
-                    SELECT DISTINCT timestamp as t
-                    FROM trade_swap
-                    WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                        AND ($3::TEXT IS NULL OR trader = $3)
-                        AND ($4::TEXT[] IS NULL OR balance_changes ?& $4)
-                    ORDER BY t
-                    LIMIT $2
-                )
-                SELECT transaction_id, receipt_id, block_height, timestamp, trader, balance_changes
-                FROM trade_swap
-                INNER JOIN blocks ON timestamp = blocks.t
-                WHERE ($3::TEXT IS NULL OR trader = $3)
-                    AND ($4::TEXT[] IS NULL OR balance_changes ?& $4)
-                ORDER BY timestamp ASC
-                "#,
-                pagination.start_block_timestamp_nanosec as i64,
-                pagination.blocks as i64,
-                self.trader_account_id.as_ref().map(|id| id.to_string()),
-                involved_token_account_ids.as_slice(),
-            )
-            .map(|record| TradeSwapEventData {
-                trader: record.trader.parse().unwrap(),
-                transaction_id: record.transaction_id.parse().unwrap(),
-                receipt_id: record.receipt_id.parse().unwrap(),
-                block_height: record.block_height as u64,
-                block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-                balance_changes: {
-                    let balance_changes: HashMap<AccountId, String> =
-                        serde_json::from_value(record.balance_changes).unwrap();
-                    balance_changes
-                        .into_iter()
-                        .map(|(k, v)| (k, v.parse().unwrap()))
-                        .collect()
-                },
-            })
-            .fetch_all(pool)
-            .await
+    ) -> Result<Vec<(EventId, <Self::Event as Event>::EventData)>, sqlx::Error> {
+        let limit = pagination.limit as i64;
+
+        #[derive(Debug, sqlx::FromRow)]
+        struct SqlTradeSwapEventData {
+            transaction_id: String,
+            receipt_id: String,
+            block_height: i64,
+            timestamp: chrono::DateTime<chrono::Utc>,
+            trader: String,
+            balance_changes: serde_json::Value,
         }
+
+        let block_height = if let PaginationBy::BeforeBlockHeight { block_height }
+        | PaginationBy::AfterBlockHeight { block_height } =
+            pagination.pagination_by
+        {
+            block_height as i64
+        } else {
+            -1
+        };
+
+        let timestamp = if let PaginationBy::BeforeTimestamp { timestamp_nanosec }
+        | PaginationBy::AfterTimestamp { timestamp_nanosec } =
+            pagination.pagination_by
+        {
+            chrono::DateTime::from_timestamp(
+                (timestamp_nanosec / 1_000_000_000) as i64,
+                (timestamp_nanosec % 1_000_000_000) as u32,
+            )
+        } else {
+            chrono::DateTime::from_timestamp(0, 0)
+        };
+
+        let id = if let PaginationBy::BeforeId { id } | PaginationBy::AfterId { id } =
+            pagination.pagination_by
+        {
+            id as i32
+        } else {
+            -1
+        };
+
+        sqlx_conditional_queries::conditional_query_as!(
+            SqlTradeSwapEventData,
+            r#"
+            SELECT *
+            FROM trade_swap{#testnet}
+            WHERE {#time}
+                {#trader}
+                {#balance_changes}
+            ORDER BY id {#order}
+            LIMIT {limit}
+            "#,
+            #(time, order) = match &pagination.pagination_by {
+                PaginationBy::BeforeBlockHeight { .. } => ("block_height < {block_height}", "DESC"),
+                PaginationBy::AfterBlockHeight { .. } => ("block_height > {block_height}", "ASC"),
+                PaginationBy::BeforeTimestamp { .. } => ("timestamp < {timestamp}", "DESC"),
+                PaginationBy::AfterTimestamp { .. } => ("timestamp > {timestamp}", "ASC"),
+                PaginationBy::BeforeId { .. } => ("id < {id}", "DESC"),
+                PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
+                PaginationBy::Oldest => ("true", "ASC"),
+                PaginationBy::Newest => ("true", "DESC"),
+            },
+            #trader = match self.trader_account_id.as_ref().map(|t| t.as_str()) {
+                Some(ref trader) => "AND trader = {trader}",
+                None => "",
+            },
+            #balance_changes = match self.involved_token_account_ids.as_ref() {
+                Some(ref tokens) => "AND balance_changes ?& {tokens}",
+                None => "",
+            },
+            #testnet = match testnet {
+                true => "_testnet",
+                false => "",
+            },
+        )
+        .fetch_all(pool)
+        .await
+        .map(|records| {
+            records
+                .into_iter()
+                .map(|record| {
+                    (
+                        record.transaction_id.parse().unwrap(),
+                        TradeSwapEventData {
+                            trader: record.trader.parse().unwrap(),
+                            transaction_id: record.transaction_id.parse().unwrap(),
+                            receipt_id: record.receipt_id.parse().unwrap(),
+                            block_height: record.block_height as u64,
+                            block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap()
+                                as u128,
+                            balance_changes: {
+                                let balance_changes: HashMap<AccountId, String> =
+                                    serde_json::from_value(record.balance_changes).unwrap();
+                                balance_changes
+                                    .into_iter()
+                                    .map(|(k, v)| (k, v.parse().unwrap()))
+                                    .collect()
+                            },
+                        },
+                    )
+                })
+                .collect()
+        })
     }
 }
 

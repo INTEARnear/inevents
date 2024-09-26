@@ -1,3 +1,4 @@
+use inevents::events::event::{EventId, PaginationBy};
 use inindexer::near_indexer_primitives::types::{AccountId, Balance, BlockHeight};
 use inindexer::near_indexer_primitives::CryptoHash;
 use inindexer::near_utils::{dec_format, dec_format_vec};
@@ -107,55 +108,125 @@ impl DatabaseEventFilter for DbNftTransferFilter {
         &self,
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
-        _testnet: bool,
-    ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
-        let involved_account_ids = self
-            .involved_account_ids
-            .as_ref()
-            .map(|s| s.split(',').map(|s| s.to_string()).collect::<Vec<_>>())
-            .unwrap_or_default();
-        sqlx::query!(r#"
-            WITH blocks AS (
-                SELECT DISTINCT timestamp as t
-                FROM nft_transfer
-                WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                    AND ($3::TEXT IS NULL OR contract_id = $3)
-                    AND ($4::TEXT IS NULL OR old_owner_id = $4)
-                    AND ($5::TEXT IS NULL OR new_owner_id = $5)
-                    AND ($6::TEXT[] IS NULL OR ARRAY[old_owner_id, new_owner_id] @> $6)
-                ORDER BY t
-                LIMIT $2
+        testnet: bool,
+    ) -> Result<Vec<(EventId, <Self::Event as Event>::EventData)>, sqlx::Error> {
+        let limit = pagination.limit as i64;
+
+        #[derive(Debug, sqlx::FromRow)]
+        struct SqlNftTransferEventData {
+            id: i64,
+            timestamp: chrono::DateTime<chrono::Utc>,
+            block_height: i64,
+            contract_id: String,
+            old_owner_id: String,
+            new_owner_id: String,
+            token_ids: Vec<String>,
+            memo: Option<String>,
+            token_prices_near: Vec<BigDecimal>,
+            transaction_id: String,
+            receipt_id: String,
+        }
+
+        let block_height = if let PaginationBy::BeforeBlockHeight { block_height }
+        | PaginationBy::AfterBlockHeight { block_height } =
+            pagination.pagination_by
+        {
+            block_height as i64
+        } else {
+            -1
+        };
+
+        let timestamp = if let PaginationBy::BeforeTimestamp { timestamp_nanosec }
+        | PaginationBy::AfterTimestamp { timestamp_nanosec } =
+            pagination.pagination_by
+        {
+            chrono::DateTime::from_timestamp(
+                (timestamp_nanosec / 1_000_000_000) as i64,
+                (timestamp_nanosec % 1_000_000_000) as u32,
             )
-            SELECT old_owner_id, new_owner_id, token_ids, memo, token_prices_near, transaction_id, receipt_id, block_height, timestamp, contract_id
-            FROM nft_transfer
-            INNER JOIN blocks ON timestamp = blocks.t
-            WHERE ($3::TEXT IS NULL OR contract_id = $3)
-                AND ($4::TEXT IS NULL OR old_owner_id = $4)
-                AND ($5::TEXT IS NULL OR new_owner_id = $5)
-                AND ($6::TEXT IS NULL OR ARRAY[old_owner_id, new_owner_id] @> $6)
-            ORDER BY timestamp ASC
+        } else {
+            chrono::DateTime::from_timestamp(0, 0)
+        };
+
+        let id = if let PaginationBy::BeforeId { id } | PaginationBy::AfterId { id } =
+            pagination.pagination_by
+        {
+            id as i32
+        } else {
+            -1
+        };
+
+        sqlx_conditional_queries::conditional_query_as!(
+            SqlNftTransferEventData,
+            r#"
+            SELECT *
+            FROM nft_transfer{#testnet}
+            WHERE {#time}
+                {#contract_id}
+                {#old_owner_id}
+                {#new_owner_id}
+                {#involved_account_ids}
+            ORDER BY id {#order}
+            LIMIT {limit}
             "#,
-            pagination.start_block_timestamp_nanosec as i64,
-            pagination.blocks as i64,
-            self.contract_id.as_deref().map(|s| s.as_str()),
-            self.old_owner_id.as_deref().map(|s| s.as_str()),
-            self.new_owner_id.as_deref().map(|s| s.as_str()),
-            involved_account_ids.as_slice(),
-        ).map(|record| NftTransferEventData {
-            old_owner_id: record.old_owner_id.parse().unwrap(),
-            new_owner_id: record.new_owner_id.parse().unwrap(),
-            token_ids: record.token_ids,
-            memo: record.memo,
-            token_prices_near: record.token_prices_near.iter().map(|price| if price.to_string() == "0" { None } else { Some(num_traits::ToPrimitive::to_u128(price).unwrap_or_else(|| {
-                log::warn!("Failed to convert number {} to u128 on {}:{}", &price, file!(), line!());
-                Default::default()
-            })) }).collect(),
-            transaction_id: record.transaction_id.parse().unwrap(),
-            receipt_id: record.receipt_id.parse().unwrap(),
-            block_height: record.block_height as u64,
-            block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-            contract_id: record.contract_id.parse().unwrap(),
-        }).fetch_all(pool).await
+            #(time, order) = match &pagination.pagination_by {
+                PaginationBy::BeforeBlockHeight { .. } => ("block_height < {block_height}", "DESC"),
+                PaginationBy::AfterBlockHeight { .. } => ("block_height > {block_height}", "ASC"),
+                PaginationBy::BeforeTimestamp { .. } => ("timestamp < {timestamp}", "DESC"),
+                PaginationBy::AfterTimestamp { .. } => ("timestamp > {timestamp}", "ASC"),
+                PaginationBy::BeforeId { .. } => ("id < {id}", "DESC"),
+                PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
+                PaginationBy::Oldest => ("true", "ASC"),
+                PaginationBy::Newest => ("true", "DESC"),
+            },
+            #contract_id = match self.contract_id.as_ref().map(|c| c.as_str()) {
+                Some(ref contract_id) => "AND contract_id = {contract_id}",
+                None => "",
+            },
+            #old_owner_id = match self.old_owner_id.as_ref().map(|o| o.as_str()) {
+                Some(ref old_owner_id) => "AND old_owner_id = {old_owner_id}",
+                None => "",
+            },
+            #new_owner_id = match self.new_owner_id.as_ref().map(|n| n.as_str()) {
+                Some(ref new_owner_id) => "AND new_owner_id = {new_owner_id}",
+                None => "",
+            },
+            #involved_account_ids = match self.involved_account_ids.as_ref().map(|ids| ids.split(',').collect::<Vec<_>>()) {
+                Some(ref involved_account_ids) => "AND ARRAY[old_owner_id, new_owner_id] @> {involved_account_ids}",
+                None => "",
+            },
+            #testnet = match testnet {
+                true => "", // "_testnet",
+                false => "",
+            },
+        )
+        .fetch_all(pool)
+        .await
+        .map(|records| {
+            records
+                .into_iter()
+                .map(|record| {
+                    (
+                        record.id as EventId,
+                        NftTransferEventData {
+                            old_owner_id: record.old_owner_id.parse().unwrap(),
+                            new_owner_id: record.new_owner_id.parse().unwrap(),
+                            token_ids: record.token_ids,
+                            memo: record.memo,
+                            token_prices_near: record.token_prices_near.iter().map(|price| if price.to_string() == "0" { None } else { Some(num_traits::ToPrimitive::to_u128(price).unwrap_or_else(|| {
+                                log::warn!("Failed to convert number {} to u128 on {}:{}", &price, file!(), line!());
+                                Default::default()
+                            })) }).collect(),
+                            transaction_id: record.transaction_id.parse().unwrap(),
+                            receipt_id: record.receipt_id.parse().unwrap(),
+                            block_height: record.block_height as u64,
+                            block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
+                            contract_id: record.contract_id.parse().unwrap(),
+                        },
+                    )
+                })
+                .collect()
+        })
     }
 }
 

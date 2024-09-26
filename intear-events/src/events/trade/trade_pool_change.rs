@@ -1,3 +1,4 @@
+use inevents::events::event::{EventId, PaginationBy};
 use inindexer::near_indexer_primitives::types::{AccountId, Balance, BlockHeight};
 use inindexer::near_indexer_primitives::CryptoHash;
 use inindexer::near_utils::{dec_format, dec_format_vec};
@@ -120,68 +121,97 @@ impl DatabaseEventFilter for DbTradePoolChangeFilter {
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
         testnet: bool,
-    ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
-        if testnet {
-            sqlx::query!(
-                r#"
-                WITH blocks AS (
-                    SELECT DISTINCT timestamp as t
-                    FROM trade_pool_change_testnet
-                    WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                        AND ($3::TEXT IS NULL OR pool_id = $3)
-                    ORDER BY t
-                    LIMIT $2
-                )
-                SELECT receipt_id, block_height, timestamp, pool_id, pool
-                FROM trade_pool_change_testnet
-                INNER JOIN blocks ON timestamp = blocks.t
-                WHERE ($3::TEXT IS NULL OR pool_id = $3)
-                ORDER BY timestamp ASC
-                "#,
-                pagination.start_block_timestamp_nanosec as i64,
-                pagination.blocks as i64,
-                self.pool_id.as_ref()
-            )
-            .map(|record| TradePoolChangeEventData {
-                pool_id: record.pool_id,
-                receipt_id: record.receipt_id.parse().unwrap(),
-                block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-                block_height: record.block_height as BlockHeight,
-                pool: serde_json::from_value(record.pool).unwrap(),
-            })
-            .fetch_all(pool)
-            .await
-        } else {
-            sqlx::query!(
-                r#"
-                WITH blocks AS (
-                    SELECT DISTINCT timestamp as t
-                    FROM trade_pool_change
-                    WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                        AND ($3::TEXT IS NULL OR pool_id = $3)
-                    ORDER BY t
-                    LIMIT $2
-                )
-                SELECT receipt_id, block_height, timestamp, pool_id, pool
-                FROM trade_pool_change
-                INNER JOIN blocks ON timestamp = blocks.t
-                WHERE ($3::TEXT IS NULL OR pool_id = $3)
-                ORDER BY timestamp ASC
-                "#,
-                pagination.start_block_timestamp_nanosec as i64,
-                pagination.blocks as i64,
-                self.pool_id.as_ref()
-            )
-            .map(|record| TradePoolChangeEventData {
-                pool_id: record.pool_id,
-                receipt_id: record.receipt_id.parse().unwrap(),
-                block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-                block_height: record.block_height as BlockHeight,
-                pool: serde_json::from_value(record.pool).unwrap(),
-            })
-            .fetch_all(pool)
-            .await
+    ) -> Result<Vec<(EventId, <Self::Event as Event>::EventData)>, sqlx::Error> {
+        let limit = pagination.limit as i64;
+
+        #[derive(Debug, sqlx::FromRow)]
+        struct SqlTradePoolChangeEventData {
+            id: i64,
+            timestamp: chrono::DateTime<chrono::Utc>,
+            receipt_id: String,
+            block_height: i64,
+            pool_id: String,
+            pool: serde_json::Value,
         }
+
+        let block_height = if let PaginationBy::BeforeBlockHeight { block_height }
+        | PaginationBy::AfterBlockHeight { block_height } =
+            pagination.pagination_by
+        {
+            block_height as i64
+        } else {
+            -1
+        };
+
+        let timestamp = if let PaginationBy::BeforeTimestamp { timestamp_nanosec }
+        | PaginationBy::AfterTimestamp { timestamp_nanosec } =
+            pagination.pagination_by
+        {
+            chrono::DateTime::from_timestamp(
+                (timestamp_nanosec / 1_000_000_000) as i64,
+                (timestamp_nanosec % 1_000_000_000) as u32,
+            )
+        } else {
+            chrono::DateTime::from_timestamp(0, 0)
+        };
+
+        let id = if let PaginationBy::BeforeId { id } | PaginationBy::AfterId { id } =
+            pagination.pagination_by
+        {
+            id as i32
+        } else {
+            -1
+        };
+
+        sqlx_conditional_queries::conditional_query_as!(
+            SqlTradePoolChangeEventData,
+            r#"
+            SELECT *
+            FROM trade_pool_change{#testnet}
+            WHERE {#time}
+                {#pool_id}
+            ORDER BY id {#order}
+            LIMIT {limit}
+            "#,
+            #(time, order) = match &pagination.pagination_by {
+                PaginationBy::BeforeBlockHeight { .. } => ("block_height < {block_height}", "DESC"),
+                PaginationBy::AfterBlockHeight { .. } => ("block_height > {block_height}", "ASC"),
+                PaginationBy::BeforeTimestamp { .. } => ("timestamp < {timestamp}", "DESC"),
+                PaginationBy::AfterTimestamp { .. } => ("timestamp > {timestamp}", "ASC"),
+                PaginationBy::BeforeId { .. } => ("id < {id}", "DESC"),
+                PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
+                PaginationBy::Oldest => ("true", "ASC"),
+                PaginationBy::Newest => ("true", "DESC"),
+            },
+            #pool_id = match self.pool_id.as_ref().map(|p| p.as_str()) {
+                Some(ref pool_id) => "AND pool_id = {pool_id}",
+                None => "",
+            },
+            #testnet = match testnet {
+                true => "_testnet",
+                false => "",
+            },
+        )
+        .fetch_all(pool)
+        .await
+        .map(|records| {
+            records
+                .into_iter()
+                .map(|record| {
+                    (
+                        record.id as EventId,
+                        TradePoolChangeEventData {
+                            pool_id: record.pool_id,
+                            receipt_id: record.receipt_id.parse().unwrap(),
+                            block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap()
+                                as u128,
+                            block_height: record.block_height as BlockHeight,
+                            pool: serde_json::from_value(record.pool).unwrap(),
+                        },
+                    )
+                })
+                .collect()
+        })
     }
 }
 

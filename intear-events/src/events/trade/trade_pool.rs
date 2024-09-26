@@ -1,3 +1,4 @@
+use inevents::events::event::{EventId, PaginationBy};
 use inindexer::near_indexer_primitives::types::{AccountId, Balance, BlockHeight};
 use inindexer::near_indexer_primitives::CryptoHash;
 use inindexer::near_utils::dec_format;
@@ -127,96 +128,130 @@ impl DatabaseEventFilter for DbTradePoolFilter {
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
         testnet: bool,
-    ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
-        if testnet {
-            sqlx::query!(
-                r#"
-                WITH blocks AS (
-                    SELECT DISTINCT timestamp as t
-                    FROM trade_pool_testnet
-                    WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                        AND ($3::TEXT IS NULL OR trader = $3)
-                        AND ($4::TEXT IS NULL OR pool = $4)
-                    ORDER BY t
-                    LIMIT $2
-                )
-                SELECT transaction_id, receipt_id, block_height, timestamp, trader, pool, token_in, token_out, amount_in, amount_out
-                FROM trade_pool_testnet
-                INNER JOIN blocks ON timestamp = blocks.t
-                WHERE ($3::TEXT IS NULL OR trader = $3)
-                    AND ($4::TEXT IS NULL OR pool = $4)
-                ORDER BY timestamp ASC
-                "#,
-                pagination.start_block_timestamp_nanosec as i64,
-                pagination.blocks as i64,
-                self.trader_account_id.as_ref().map(|id| id.to_string()),
-                self.pool_id.as_deref(),
-            )
-            .map(|record| TradePoolEventData {
-                trader: record.trader.parse().unwrap(),
-                transaction_id: record.transaction_id.parse().unwrap(),
-                receipt_id: record.receipt_id.parse().unwrap(),
-                block_height: record.block_height as u64,
-                block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-                pool: record.pool.parse().unwrap(),
-                token_in: record.token_in.parse().unwrap(),
-                token_out: record.token_out.parse().unwrap(),
-                amount_in: num_traits::ToPrimitive::to_u128(&record.amount_in).unwrap_or_else(|| {
-                    log::warn!("Failed to convert number {} to u128 on {}:{}", &record.amount_in, file!(), line!());
-                    Default::default()
-                }),
-                amount_out: num_traits::ToPrimitive::to_u128(&record.amount_out).unwrap_or_else(|| {
-                    log::warn!("Failed to convert number {} to u128 on {}:{}", &record.amount_out, file!(), line!());
-                    Default::default()
-                }),
-            })
-            .fetch_all(pool)
-            .await
-        } else {
-            sqlx::query!(
-                r#"
-                WITH blocks AS (
-                    SELECT DISTINCT timestamp as t
-                    FROM trade_pool
-                    WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                        AND ($3::TEXT IS NULL OR trader = $3)
-                        AND ($4::TEXT IS NULL OR pool = $4)
-                    ORDER BY t
-                    LIMIT $2
-                )
-                SELECT transaction_id, receipt_id, block_height, timestamp, trader, pool, token_in, token_out, amount_in, amount_out
-                FROM trade_pool
-                INNER JOIN blocks ON timestamp = blocks.t
-                WHERE ($3::TEXT IS NULL OR trader = $3)
-                    AND ($4::TEXT IS NULL OR pool = $4)
-                ORDER BY timestamp ASC
-                "#,
-                pagination.start_block_timestamp_nanosec as i64,
-                pagination.blocks as i64,
-                self.trader_account_id.as_ref().map(|id| id.to_string()),
-                self.pool_id.as_deref(),
-            )
-            .map(|record| TradePoolEventData {
-                trader: record.trader.parse().unwrap(),
-                transaction_id: record.transaction_id.parse().unwrap(),
-                receipt_id: record.receipt_id.parse().unwrap(),
-                block_height: record.block_height as u64,
-                block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-                pool: record.pool.parse().unwrap(),
-                token_in: record.token_in.parse().unwrap(),
-                token_out: record.token_out.parse().unwrap(),
-                amount_in: num_traits::ToPrimitive::to_u128(&record.amount_in).unwrap_or_else(|| {
-                    log::warn!("Failed to convert number {} to u128 on {}:{}", &record.amount_in, file!(), line!());
-                    Default::default()
-                }),
-                amount_out: num_traits::ToPrimitive::to_u128(&record.amount_out).unwrap_or_else(|| {
-                    log::warn!("Failed to convert number {} to u128 on {}:{}", &record.amount_out, file!(), line!());
-                    Default::default()
-                }),
-            })
-            .fetch_all(pool)
-            .await
+    ) -> Result<Vec<(EventId, <Self::Event as Event>::EventData)>, sqlx::Error> {
+        let limit = pagination.limit as i64;
+
+        #[derive(Debug, sqlx::FromRow)]
+        struct SqlTradePoolEventData {
+            id: i64,
+            timestamp: chrono::DateTime<chrono::Utc>,
+            transaction_id: String,
+            receipt_id: String,
+            block_height: i64,
+            trader: String,
+            pool: String,
+            token_in: String,
+            token_out: String,
+            amount_in: BigDecimal,
+            amount_out: BigDecimal,
         }
+
+        let block_height = if let PaginationBy::BeforeBlockHeight { block_height }
+        | PaginationBy::AfterBlockHeight { block_height } =
+            pagination.pagination_by
+        {
+            block_height as i64
+        } else {
+            -1
+        };
+
+        let timestamp = if let PaginationBy::BeforeTimestamp { timestamp_nanosec }
+        | PaginationBy::AfterTimestamp { timestamp_nanosec } =
+            pagination.pagination_by
+        {
+            chrono::DateTime::from_timestamp(
+                (timestamp_nanosec / 1_000_000_000) as i64,
+                (timestamp_nanosec % 1_000_000_000) as u32,
+            )
+        } else {
+            chrono::DateTime::from_timestamp(0, 0)
+        };
+
+        let id = if let PaginationBy::BeforeId { id } | PaginationBy::AfterId { id } =
+            pagination.pagination_by
+        {
+            id as i32
+        } else {
+            -1
+        };
+
+        sqlx_conditional_queries::conditional_query_as!(
+            SqlTradePoolEventData,
+            r#"
+            SELECT *
+            FROM trade_pool{#testnet}
+            WHERE {#time}
+                {#trader}
+                {#pool}
+            ORDER BY id {#order}
+            LIMIT {limit}
+            "#,
+            #(time, order) = match &pagination.pagination_by {
+                PaginationBy::BeforeBlockHeight { .. } => ("block_height < {block_height}", "DESC"),
+                PaginationBy::AfterBlockHeight { .. } => ("block_height > {block_height}", "ASC"),
+                PaginationBy::BeforeTimestamp { .. } => ("timestamp < {timestamp}", "DESC"),
+                PaginationBy::AfterTimestamp { .. } => ("timestamp > {timestamp}", "ASC"),
+                PaginationBy::BeforeId { .. } => ("id < {id}", "DESC"),
+                PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
+                PaginationBy::Oldest => ("true", "ASC"),
+                PaginationBy::Newest => ("true", "DESC"),
+            },
+            #trader = match self.trader_account_id.as_ref().map(|id| id.as_str()) {
+                Some(ref trader) => "AND trader = {trader}",
+                None => "",
+            },
+            #pool = match self.pool_id.as_ref().map(|id| id.as_str()) {
+                Some(ref pool) => "AND pool = {pool}",
+                None => "",
+            },
+            #testnet = match testnet {
+                true => "_testnet",
+                false => "",
+            },
+        )
+        .fetch_all(pool)
+        .await
+        .map(|records| {
+            records
+                .into_iter()
+                .map(|record| {
+                    (
+                        record.id as EventId,
+                        TradePoolEventData {
+                            pool: record.pool,
+                            token_in: record.token_in.parse().unwrap(),
+                            token_out: record.token_out.parse().unwrap(),
+                            amount_in: num_traits::ToPrimitive::to_u128(&record.amount_in)
+                                .unwrap_or_else(|| {
+                                    log::warn!(
+                                        "Failed to convert number {} to u128 on {}:{}",
+                                        &record.amount_in,
+                                        file!(),
+                                        line!()
+                                    );
+                                    Default::default()
+                                }),
+                            amount_out: num_traits::ToPrimitive::to_u128(&record.amount_out)
+                                .unwrap_or_else(|| {
+                                    log::warn!(
+                                        "Failed to convert number {} to u128 on {}:{}",
+                                        &record.amount_out,
+                                        file!(),
+                                        line!()
+                                    );
+                                    Default::default()
+                                }),
+                            trader: record.trader.parse().unwrap(),
+                            transaction_id: record.transaction_id.parse().unwrap(),
+                            receipt_id: record.receipt_id.parse().unwrap(),
+                            block_height: record.block_height as u64,
+                            block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap()
+                                as u128,
+                        },
+                    )
+                })
+                .collect()
+        })
     }
 }
 

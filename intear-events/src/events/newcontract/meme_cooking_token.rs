@@ -1,3 +1,4 @@
+use inevents::events::event::{EventId, PaginationBy};
 use inindexer::near_indexer_primitives::types::{AccountId, Balance, BlockHeight};
 use inindexer::near_indexer_primitives::CryptoHash;
 use inindexer::near_utils::dec_format;
@@ -117,84 +118,117 @@ impl DatabaseEventFilter for NewMemeCookingMemeFilter {
         pagination: &PaginationParameters,
         pool: &Pool<Postgres>,
         testnet: bool,
-    ) -> Result<Vec<<Self::Event as Event>::EventData>, sqlx::Error> {
-        if testnet {
-            sqlx::query!(
-                r#"
-                WITH blocks AS (
-                    SELECT DISTINCT timestamp as t
-                    FROM memecooking_create_token_testnet
-                    WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                        AND ($3::BIGINT IS NULL OR meme_id = $3)
-                        AND ($4::TEXT IS NULL OR token_id = $4)
-                    ORDER BY t
-                    LIMIT $2
-                )
-                SELECT transaction_id, receipt_id, block_height, timestamp, meme_id, token_id, total_supply, pool_id
-                FROM memecooking_create_token_testnet
-                INNER JOIN blocks ON timestamp = blocks.t
-                WHERE ($3::BIGINT IS NULL OR meme_id = $3)
-                    AND ($4::TEXT IS NULL OR token_id = $4)
-                ORDER BY timestamp ASC
-                "#,
-                pagination.start_block_timestamp_nanosec as i64,
-                pagination.blocks as i64,
-                self.meme_id.map(|id| id as i64),
-                self.token_id.as_ref().map(|id| id.as_str()),
-            ).map(|record| NewMemeCookingTokenEventData {
-                transaction_id: record.transaction_id.parse().unwrap(),
-                receipt_id: record.receipt_id.parse().unwrap(),
-                block_height: record.block_height as u64,
-                block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-                meme_id: record.meme_id as u64,
-                token_id: record.token_id.parse().unwrap(),
-                total_supply: num_traits::ToPrimitive::to_u128(&record.total_supply).unwrap_or_else(|| {
-                    log::warn!("Failed to convert number {} to u128 on {}:{}", &record.total_supply, file!(), line!());
-                    Default::default()
-                }),
-                pool_id: record.pool_id as u64,
-            })
-            .fetch_all(pool)
-            .await
-        } else {
-            sqlx::query!(
-                r#"
-                WITH blocks AS (
-                    SELECT DISTINCT timestamp as t
-                    FROM memecooking_create_token
-                    WHERE extract(epoch from timestamp) * 1_000_000_000 >= $1
-                        AND ($3::BIGINT IS NULL OR meme_id = $3)
-                        AND ($4::TEXT IS NULL OR token_id = $4)
-                    ORDER BY t
-                    LIMIT $2
-                )
-                SELECT transaction_id, receipt_id, block_height, timestamp, meme_id, token_id, total_supply, pool_id
-                FROM memecooking_create_token
-                INNER JOIN blocks ON timestamp = blocks.t
-                WHERE ($3::BIGINT IS NULL OR meme_id = $3)
-                    AND ($4::TEXT IS NULL OR token_id = $4)
-                ORDER BY timestamp ASC
-                "#,
-                pagination.start_block_timestamp_nanosec as i64,
-                pagination.blocks as i64,
-                self.meme_id.map(|id| id as i64),
-                self.token_id.as_ref().map(|id| id.as_str()),
-            ).map(|record| NewMemeCookingTokenEventData {
-                transaction_id: record.transaction_id.parse().unwrap(),
-                receipt_id: record.receipt_id.parse().unwrap(),
-                block_height: record.block_height as u64,
-                block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap() as u128,
-                meme_id: record.meme_id as u64,
-                token_id: record.token_id.parse().unwrap(),
-                total_supply: num_traits::ToPrimitive::to_u128(&record.total_supply).unwrap_or_else(|| {
-                    log::warn!("Failed to convert number {} to u128 on {}:{}", &record.total_supply, file!(), line!());
-                    Default::default()
-                }),
-                pool_id: record.pool_id as u64,
-            })
-            .fetch_all(pool)
-            .await
+    ) -> Result<Vec<(EventId, <Self::Event as Event>::EventData)>, sqlx::Error> {
+        let limit = pagination.limit as i64;
+
+        #[derive(Debug, sqlx::FromRow)]
+        struct SqlNewMemeCookingTokenEventData {
+            id: i64,
+            transaction_id: String,
+            receipt_id: String,
+            block_height: i64,
+            timestamp: chrono::DateTime<chrono::Utc>,
+            meme_id: i64,
+            token_id: String,
+            total_supply: BigDecimal,
+            pool_id: i64,
         }
+
+        let block_height = if let PaginationBy::BeforeBlockHeight { block_height }
+        | PaginationBy::AfterBlockHeight { block_height } =
+            pagination.pagination_by
+        {
+            block_height as i64
+        } else {
+            -1
+        };
+
+        let timestamp = if let PaginationBy::BeforeTimestamp { timestamp_nanosec }
+        | PaginationBy::AfterTimestamp { timestamp_nanosec } =
+            pagination.pagination_by
+        {
+            chrono::DateTime::from_timestamp(
+                (timestamp_nanosec / 1_000_000_000) as i64,
+                (timestamp_nanosec % 1_000_000_000) as u32,
+            )
+        } else {
+            chrono::DateTime::from_timestamp(0, 0)
+        };
+
+        let id = if let PaginationBy::BeforeId { id } | PaginationBy::AfterId { id } =
+            pagination.pagination_by
+        {
+            id as i32
+        } else {
+            -1
+        };
+
+        sqlx_conditional_queries::conditional_query_as!(
+            SqlNewMemeCookingTokenEventData,
+            r#"
+            SELECT *
+            FROM memecooking_create_token{#testnet}
+            WHERE {#time}
+                {#meme_id}
+                {#token_id}
+            ORDER BY id {#order}
+            LIMIT {limit}
+            "#,
+            #(time, order) = match &pagination.pagination_by {
+                PaginationBy::BeforeBlockHeight { .. } => ("block_height < {block_height}", "DESC"),
+                PaginationBy::AfterBlockHeight { .. } => ("block_height > {block_height}", "ASC"),
+                PaginationBy::BeforeTimestamp { .. } => ("timestamp < {timestamp}", "DESC"),
+                PaginationBy::AfterTimestamp { .. } => ("timestamp > {timestamp}", "ASC"),
+                PaginationBy::BeforeId { .. } => ("id < {id}", "DESC"),
+                PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
+                PaginationBy::Oldest => ("true", "ASC"),
+                PaginationBy::Newest => ("true", "DESC"),
+            },
+            #meme_id = match self.meme_id {
+                Some(meme_id) => "AND meme_id = {meme_id}",
+                None => "",
+            },
+            #token_id = match self.token_id.as_ref().map(|id| id.as_str()) {
+                Some(token_id) => "AND token_id = {token_id}",
+                None => "",
+            },
+            #testnet = match testnet {
+                true => "_testnet",
+                false => "",
+            },
+        )
+        .fetch_all(pool)
+        .await
+        .map(|records| {
+            records
+                .into_iter()
+                .map(|record| {
+                    (
+                        record.id as EventId,
+                        NewMemeCookingTokenEventData {
+                            transaction_id: record.transaction_id.parse().unwrap(),
+                            receipt_id: record.receipt_id.parse().unwrap(),
+                            block_height: record.block_height as u64,
+                            block_timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap()
+                                as u128,
+                            meme_id: record.meme_id as u64,
+                            token_id: record.token_id.parse().unwrap(),
+                            total_supply: num_traits::ToPrimitive::to_u128(&record.total_supply)
+                                .unwrap_or_else(|| {
+                                    log::warn!(
+                                        "Failed to convert number {} to u128 on {}:{}",
+                                        &record.total_supply,
+                                        file!(),
+                                        line!()
+                                    );
+                                    Default::default()
+                                }),
+                            pool_id: record.pool_id as u64,
+                        },
+                    )
+                })
+                .collect()
+        })
     }
 }
 
