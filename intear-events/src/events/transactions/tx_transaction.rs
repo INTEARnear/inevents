@@ -100,8 +100,8 @@ impl DatabaseEventAdapter for DbTxTransactionAdapter {
         } else {
             sqlx::query!(
                 r#"
-                INSERT INTO tx_transactions (timestamp, block_height, signer_id, receiver_id, transaction_id, actions, priority_fee, signature)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                INSERT INTO tx_transactions (timestamp, block_height, signer_id, public_key, nonce, receiver_id, transaction_id, actions, priority_fee, signature)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                 "#,
                 chrono::DateTime::from_timestamp(
                     (event.block_timestamp_nanosec / 1_000_000_000) as i64,
@@ -109,6 +109,8 @@ impl DatabaseEventAdapter for DbTxTransactionAdapter {
                 ),
                 event.block_height as i64,
                 event.signer_id.to_string(),
+                event.public_key,
+                event.nonce as i64,
                 event.receiver_id.to_string(),
                 event.transaction_id.to_string(),
                 &event.actions,
