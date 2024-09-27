@@ -6,3 +6,4 @@ pub mod price;
 pub mod socialdb;
 pub mod tps;
 pub mod trade;
+pub mod transactions;
