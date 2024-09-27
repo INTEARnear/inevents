@@ -28,6 +28,7 @@ impl Event for TxTransactionEvent {
     const ID: &'static str = Self::ID;
     const DESCRIPTION: Option<&'static str> = Some("High-level transaction information");
     const CATEGORY: &'static str = "Transactions";
+    const SUPPORTS_TESTNET: bool = true;
 
     type EventData = TxTransactionEventData;
     type RealtimeEventFilter = RtTxTransactionFilter;

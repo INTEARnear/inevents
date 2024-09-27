@@ -20,7 +20,7 @@ use inevents::events::event::{
 pub struct TxReceiptEvent;
 
 impl TxReceiptEvent {
-    pub const ID: &'static str = "tx_transaction";
+    pub const ID: &'static str = "tx_receipt";
 }
 
 #[cfg(feature = "impl")]
@@ -28,6 +28,7 @@ impl Event for TxReceiptEvent {
     const ID: &'static str = Self::ID;
     const DESCRIPTION: Option<&'static str> = Some("High-level transaction information");
     const CATEGORY: &'static str = "Transactions";
+    const SUPPORTS_TESTNET: bool = true;
 
     type EventData = TxReceiptEventData;
     type RealtimeEventFilter = RtTxReceiptFilter;

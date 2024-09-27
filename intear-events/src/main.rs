@@ -36,6 +36,8 @@ async fn main() {
     use intear_events::events::newcontract::meme_cooking_token::NewMemeCookingTokenEvent;
     use intear_events::events::trade::memecooking_deposit::MemeCookingDepositEvent;
     use intear_events::events::trade::memecooking_withdraw::MemeCookingWithdrawEvent;
+    use intear_events::events::transactions::tx_receipt::TxReceiptEvent;
+    use intear_events::events::transactions::tx_transaction::TxTransactionEvent;
 
     dotenvy::dotenv().ok();
     simple_logger::SimpleLogger::new()
@@ -82,6 +84,8 @@ async fn main() {
         MemeCookingDepositEvent,
         MemeCookingWithdrawEvent,
         NewMemeCookingTokenEvent,
+        TxTransactionEvent,
+        TxReceiptEvent,
     );
 
     let mut futures = Vec::new();
