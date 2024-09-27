@@ -22,6 +22,7 @@ use inevents::{
         websocket_server::WebsocketServer, EventModule,
     },
 };
+#[cfg(feature = "impl")]
 use intear_events::events::{
     log::{log_nep297::LogNep297Event, log_text::LogTextEvent},
     newcontract::{meme_cooking_meme::NewMemeCookingMemeEvent, nep141::NewContractNep141Event},

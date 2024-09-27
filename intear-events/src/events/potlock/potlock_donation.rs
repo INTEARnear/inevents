@@ -1,3 +1,4 @@
+#[cfg(feature = "impl")]
 use inevents::events::event::{EventId, PaginationBy};
 use std::collections::HashMap;
 

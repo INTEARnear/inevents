@@ -1,3 +1,4 @@
+#[cfg(feature = "impl")]
 use inevents::events::event::{EventId, PaginationBy};
 #[cfg(feature = "impl")]
 use std::str::FromStr;

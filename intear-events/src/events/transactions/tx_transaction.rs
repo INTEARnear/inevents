@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+#[cfg(feature = "impl")]
 use inevents::events::event::{EventId, PaginationBy};
 use inindexer::near_indexer_primitives::types::{AccountId, BlockHeight};
 use inindexer::near_indexer_primitives::CryptoHash;

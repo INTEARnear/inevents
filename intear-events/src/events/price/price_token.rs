@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
+#[cfg(feature = "impl")]
 use inevents::actix_web::http::StatusCode;
+#[cfg(feature = "impl")]
 use inevents::events::event::{CustomHttpEndpoint, EventId, PaginationBy};
 use inindexer::near_indexer_primitives::types::{AccountId, BlockHeight};
 use inindexer::near_utils::dec_format;
