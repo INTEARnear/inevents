@@ -388,7 +388,7 @@ pub fn create_openapi_spec<E: EventCollection>(testnet: bool) -> OpenApi {
                                 .name("limit")
                                 .description(Some("How many events you want to get"))
                                 .parameter_in(ParameterIn::Query)
-                                .required(Required::False)
+                                .required(Required::True)
                                 .schema(Some(utoipa::openapi::schema::Schema::Object(
                                     ObjectBuilder::new()
                                         .schema_type(SchemaType::Integer)
