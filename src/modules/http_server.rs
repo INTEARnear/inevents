@@ -323,51 +323,83 @@ pub fn create_openapi_spec<E: EventCollection>(testnet: bool) -> OpenApi {
                 builder = builder.path(
                     format!("/query{}/{}", if testnet { "-testnet" } else { "" }, event.event_identifier),
                     PathItemBuilder::new()
-                        .parameters(Some({
-                            let mut params = <PaginationParameters as utoipa::IntoParams>::into_params(|| Some(ParameterIn::Query));
-                            params.extend([
-                                ParameterBuilder::new()
-                                    .name("block_height")
-                                    .description(Some("Only when `pagination_by` is `BeforeBlockHeight` or `AfterBlockHeight`"))
-                                    .parameter_in(ParameterIn::Query)
-                                    .required(Required::False)
-                                    .schema(Some(utoipa::openapi::schema::Schema::Object(
-                                        ObjectBuilder::new()
-                                            .schema_type(SchemaType::Integer)
-                                            .minimum(Some(0.0))
-                                            .multiple_of(Some(1.0))
-                                            .build(),
-                                    )))
-                                    .build(),
-                                ParameterBuilder::new()
-                                    .name("timestamp")
-                                    .description(Some("Only when `pagination_by` is `BeforeTimestamp` or `AfterTimestamp`"))
-                                    .parameter_in(ParameterIn::Query)
-                                    .required(Required::False)
-                                    .schema(Some(utoipa::openapi::schema::Schema::Object(
-                                        ObjectBuilder::new()
-                                            .schema_type(SchemaType::Integer)
-                                            .minimum(Some(0.0))
-                                            .multiple_of(Some(1.0))
-                                            .build(),
-                                    )))
-                                    .build(),
-                                ParameterBuilder::new()
-                                    .name("id")
-                                    .description(Some("Only when `pagination_by` is `BeforeId` or `AfterId`"))
-                                    .parameter_in(ParameterIn::Query)
-                                    .required(Required::False)
-                                    .schema(Some(utoipa::openapi::schema::Schema::Object(
-                                        ObjectBuilder::new()
-                                            .schema_type(SchemaType::Integer)
-                                            .minimum(Some(0.0))
-                                            .multiple_of(Some(1.0))
-                                            .build(),
-                                    )))
-                                    .build(),
-                            ]);
-                            params
-                        }))
+                        .parameters(Some(vec![
+                            ParameterBuilder::new()
+                                .name("pagination_by")
+                                .description(Some("Determines how to paginate the results"))
+                                .parameter_in(ParameterIn::Query)
+                                .required(Required::True)
+                                .schema(Some(utoipa::openapi::schema::Schema::Object(
+                                    ObjectBuilder::new()
+                                        .schema_type(SchemaType::String)
+                                        .enum_values(Some(vec![
+                                            serde_json::Value::String("BeforeBlockHeight".to_string()),
+                                            serde_json::Value::String("AfterBlockHeight".to_string()),
+                                            serde_json::Value::String("BeforeTimestamp".to_string()),
+                                            serde_json::Value::String("AfterTimestamp".to_string()),
+                                            serde_json::Value::String("BeforeId".to_string()),
+                                            serde_json::Value::String("AfterId".to_string()),
+                                            serde_json::Value::String("Oldest".to_string()),
+                                            serde_json::Value::String("Newest".to_string()),
+                                        ]))
+                                        .build(),
+                                )))
+                                .build(),
+                            ParameterBuilder::new()
+                                .name("block_height")
+                                .description(Some("Only when `pagination_by` is `BeforeBlockHeight` or `AfterBlockHeight`"))
+                                .parameter_in(ParameterIn::Query)
+                                .required(Required::False)
+                                .schema(Some(utoipa::openapi::schema::Schema::Object(
+                                    ObjectBuilder::new()
+                                        .schema_type(SchemaType::Integer)
+                                        .minimum(Some(0.0))
+                                        .multiple_of(Some(1.0))
+                                        .build(),
+                                )))
+                                .build(),
+                            ParameterBuilder::new()
+                                .name("timestamp")
+                                .description(Some("Only when `pagination_by` is `BeforeTimestamp` or `AfterTimestamp`"))
+                                .parameter_in(ParameterIn::Query)
+                                .required(Required::False)
+                                .schema(Some(utoipa::openapi::schema::Schema::Object(
+                                    ObjectBuilder::new()
+                                        .schema_type(SchemaType::Integer)
+                                        .minimum(Some(0.0))
+                                        .multiple_of(Some(1.0))
+                                        .build(),
+                                )))
+                                .build(),
+                            ParameterBuilder::new()
+                                .name("id")
+                                .description(Some("Only when `pagination_by` is `BeforeId` or `AfterId`"))
+                                .parameter_in(ParameterIn::Query)
+                                .required(Required::False)
+                                .schema(Some(utoipa::openapi::schema::Schema::Object(
+                                    ObjectBuilder::new()
+                                        .schema_type(SchemaType::Integer)
+                                        .minimum(Some(0.0))
+                                        .multiple_of(Some(1.0))
+                                        .build(),
+                                )))
+                                .build(),
+                            ParameterBuilder::new()
+                                .name("limit")
+                                .description(Some("How many events you want to get"))
+                                .parameter_in(ParameterIn::Query)
+                                .required(Required::False)
+                                .schema(Some(utoipa::openapi::schema::Schema::Object(
+                                    ObjectBuilder::new()
+                                        .schema_type(SchemaType::Integer)
+                                        .minimum(Some(0.0))
+                                        .multiple_of(Some(1.0))
+                                        .maximum(Some(MAX_EVENTS_PER_REQUEST as f64))
+                                        .default(Some(10.into()))
+                                        .build(),
+                                )))
+                                .build(),
+                        ]))
                         .operation(
                             PathItemType::Get,
                             OperationBuilder::new()

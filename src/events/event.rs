@@ -70,14 +70,14 @@ pub trait DatabaseEventFilter {
 
 pub const MAX_EVENTS_PER_REQUEST: u64 = 200;
 
-#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[derive(Debug, Deserialize)]
 pub struct PaginationParameters {
     pub limit: u64,
     #[serde(flatten)]
     pub pagination_by: PaginationBy,
 }
 
-#[derive(Debug, Deserialize, JsonSchema, utoipa::ToSchema)]
+#[derive(Debug, Deserialize, JsonSchema)]
 #[serde(tag = "pagination_by")]
 pub enum PaginationBy {
     Oldest,
