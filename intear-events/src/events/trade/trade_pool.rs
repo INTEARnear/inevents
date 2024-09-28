@@ -130,8 +130,6 @@ impl DatabaseEventFilter for DbTradePoolFilter {
         pool: &Pool<Postgres>,
         testnet: bool,
     ) -> Result<Vec<(EventId, <Self::Event as Event>::EventData)>, sqlx::Error> {
-        let limit = pagination.limit as i64;
-
         #[derive(Debug, sqlx::FromRow)]
         struct SqlTradePoolEventData {
             id: i64,
@@ -146,35 +144,8 @@ impl DatabaseEventFilter for DbTradePoolFilter {
             amount_in: BigDecimal,
             amount_out: BigDecimal,
         }
-
-        let block_height = if let PaginationBy::BeforeBlockHeight { block_height }
-        | PaginationBy::AfterBlockHeight { block_height } =
-            pagination.pagination_by
-        {
-            block_height as i64
-        } else {
-            -1
-        };
-
-        let timestamp = if let PaginationBy::BeforeTimestamp { timestamp_nanosec }
-        | PaginationBy::AfterTimestamp { timestamp_nanosec } =
-            pagination.pagination_by
-        {
-            chrono::DateTime::from_timestamp(
-                (timestamp_nanosec / 1_000_000_000) as i64,
-                (timestamp_nanosec % 1_000_000_000) as u32,
-            )
-        } else {
-            chrono::DateTime::from_timestamp(0, 0)
-        };
-
-        let id = if let PaginationBy::BeforeId { id } | PaginationBy::AfterId { id } =
-            pagination.pagination_by
-        {
-            id as i32
-        } else {
-            -1
-        };
+        let (timestamp, id, limit) =
+            crate::events::get_pagination_params(pagination, pool, testnet).await;
 
         let pool_id = self.pool_id.as_deref();
         let trader_account_id = self.trader_account_id.as_ref().map(|id| id.as_str());
@@ -191,10 +162,10 @@ impl DatabaseEventFilter for DbTradePoolFilter {
             LIMIT {limit}
             "#,
             #(time, order) = match &pagination.pagination_by {
-                PaginationBy::BeforeBlockHeight { .. } => ("block_height < {block_height}", "DESC"),
-                PaginationBy::AfterBlockHeight { .. } => ("block_height > {block_height}", "ASC"),
-                PaginationBy::BeforeTimestamp { .. } => ("timestamp < {timestamp}", "DESC"),
-                PaginationBy::AfterTimestamp { .. } => ("timestamp > {timestamp}", "ASC"),
+                PaginationBy::BeforeTimestamp { .. }
+                    | PaginationBy::BeforeBlockHeight { .. } => ("timestamp < {timestamp}", "DESC"),
+                PaginationBy::AfterTimestamp { .. }
+                    |  PaginationBy::AfterBlockHeight { .. } => ("timestamp > {timestamp}", "ASC"),
                 PaginationBy::BeforeId { .. } => ("id < {id}", "DESC"),
                 PaginationBy::AfterId { .. } => ("id > {id}", "ASC"),
                 PaginationBy::Oldest => ("true", "ASC"),

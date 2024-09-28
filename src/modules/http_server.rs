@@ -6,7 +6,7 @@ use std::{
     io::BufReader,
 };
 
-use crate::events::event::{PaginationParameters, MAX_EVENTS_PER_REQUEST};
+use crate::events::event::{PaginationBy, PaginationParameters, MAX_EVENTS_PER_REQUEST};
 
 use super::{EventCollection, EventModule, RawEvent};
 use actix_cors::Cors;
@@ -257,6 +257,10 @@ fn create_route(event: RawEvent, testnet: bool) -> impl HttpServiceFactory {
               pagination: web::Query<PaginationParameters>,
               request: HttpRequest| async move {
             let limit = pagination.limit;
+            let is_sort_by_newest = match pagination.pagination_by {
+                PaginationBy::Newest => true,
+                _ => false,
+            };
             if limit > MAX_EVENTS_PER_REQUEST {
                 return Err(AppError::TooManyBlocks {
                     requested: limit,
@@ -267,7 +271,7 @@ fn create_route(event: RawEvent, testnet: bool) -> impl HttpServiceFactory {
                 .await
                 .map(|res| {
                     // Cache responses if all `limit` events are returned
-                    let cache_control = if res.len() == limit as usize {
+                    let cache_control = if res.len() == limit as usize && !is_sort_by_newest {
                         header::CacheControl(vec![
                             CacheDirective::Public,
                             CacheDirective::MaxAge(60 * 10),
@@ -275,7 +279,16 @@ fn create_route(event: RawEvent, testnet: bool) -> impl HttpServiceFactory {
                     } else {
                         header::CacheControl(vec![CacheDirective::NoCache])
                     };
-                    HttpResponse::Ok().append_header(cache_control).json(res)
+                    HttpResponse::Ok().append_header(cache_control).json(
+                        res.into_iter()
+                            .map(|(id, data)| {
+                                serde_json::json!({
+                                    "id": id,
+                                    "event": data,
+                                })
+                            })
+                            .collect::<Vec<_>>(),
+                    )
                 })
         },
     ))
@@ -359,7 +372,7 @@ pub fn create_openapi_spec<E: EventCollection>(testnet: bool) -> OpenApi {
                                 )))
                                 .build(),
                             ParameterBuilder::new()
-                                .name("timestamp")
+                                .name("timestamp_nanosec")
                                 .description(Some("Only when `pagination_by` is `BeforeTimestamp` or `AfterTimestamp`"))
                                 .parameter_in(ParameterIn::Query)
                                 .required(Required::False)
@@ -437,12 +450,6 @@ pub fn create_openapi_spec<E: EventCollection>(testnet: bool) -> OpenApi {
                                                         .min_items(Some(0))
                                                         .items(
                                                             to_openapi_schema(
-                                                                // // returns an array of events
-                                                                // &schemars::schema::Schema::Object(
-                                                                //     event.event_data_schema.schema,
-                                                                // ),
-
-                                                                // returns an array of {"id": number, "event": object}
                                                                 &schemars::schema::Schema::Object(
                                                                     SchemaObject {
                                                                         object: Some(Box::new(ObjectValidation {

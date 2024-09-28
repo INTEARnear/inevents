@@ -1,6 +1,6 @@
 #[cfg(feature = "impl")]
 use inevents::events::event::{EventId, PaginationBy};
-use inindexer::near_indexer_primitives::types::{AccountId, BlockHeight};
+use inindexer::near_indexer_primitives::types::AccountId;
 use inindexer::near_utils::dec_format;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -36,7 +36,6 @@ impl Event for PricePoolEvent {
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PricePoolEventData {
-    pub block_height: BlockHeight,
     pub pool_id: PoolId,
     #[schemars(with = "String")]
     pub token0: AccountId,
@@ -96,11 +95,10 @@ impl DatabaseEventAdapter for DbPricePoolAdapter {
         _testnet: bool,
     ) -> Result<PgQueryResult, sqlx::Error> {
         sqlx::query!(r#"
-            INSERT INTO price_pool (timestamp, block_height, pool_id, token0, token1, token0_in_1_token1, token1_in_1_token0)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO price_pool (timestamp, pool_id, token0, token1, token0_in_1_token1, token1_in_1_token0)
+            VALUES ($1, $2, $3, $4, $5, $6)
             "#,
             chrono::DateTime::from_timestamp((event.timestamp_nanosec / 1_000_000_000) as i64, (event.timestamp_nanosec % 1_000_000_000) as u32),
-            event.block_height as i64,
             event.pool_id.as_str(),
             event.token0.as_str(),
             event.token1.as_str(),
@@ -120,48 +118,23 @@ impl DatabaseEventFilter for DbPricePoolFilter {
         pool: &Pool<Postgres>,
         testnet: bool,
     ) -> Result<Vec<(EventId, <Self::Event as Event>::EventData)>, sqlx::Error> {
-        let limit = pagination.limit as i64;
-
+        if let PaginationBy::BeforeBlockHeight { .. } | PaginationBy::AfterBlockHeight { .. } =
+            pagination.pagination_by
+        {
+            return Ok(Vec::new()); // Doesn't have block height
+        }
         #[derive(Debug, sqlx::FromRow)]
         struct SqlPricePoolEventData {
             id: i64,
             timestamp: chrono::DateTime<chrono::Utc>,
-            block_height: i64,
             pool_id: String,
             token0: String,
             token1: String,
             token0_in_1_token1: BigDecimal,
             token1_in_1_token0: BigDecimal,
         }
-
-        let block_height = if let PaginationBy::BeforeBlockHeight { block_height }
-        | PaginationBy::AfterBlockHeight { block_height } =
-            pagination.pagination_by
-        {
-            block_height as i64
-        } else {
-            -1
-        };
-
-        let timestamp = if let PaginationBy::BeforeTimestamp { timestamp_nanosec }
-        | PaginationBy::AfterTimestamp { timestamp_nanosec } =
-            pagination.pagination_by
-        {
-            chrono::DateTime::from_timestamp(
-                (timestamp_nanosec / 1_000_000_000) as i64,
-                (timestamp_nanosec % 1_000_000_000) as u32,
-            )
-        } else {
-            chrono::DateTime::from_timestamp(0, 0)
-        };
-
-        let id = if let PaginationBy::BeforeId { id } | PaginationBy::AfterId { id } =
-            pagination.pagination_by
-        {
-            id as i32
-        } else {
-            -1
-        };
+        let (timestamp, id, limit) =
+            crate::events::get_pagination_params(pagination, pool, testnet).await;
 
         let involved_token_account_ids = &self
             .involved_token_account_ids
@@ -189,8 +162,7 @@ impl DatabaseEventFilter for DbPricePoolFilter {
             LIMIT {limit}
             "#,
             #(time, order) = match &pagination.pagination_by {
-                PaginationBy::BeforeBlockHeight { .. } => ("block_height < {block_height}", "DESC"),
-                PaginationBy::AfterBlockHeight { .. } => ("block_height > {block_height}", "ASC"),
+                PaginationBy::BeforeBlockHeight { ..} | PaginationBy::AfterBlockHeight { .. } => ("true", "DESC"),
                 PaginationBy::BeforeTimestamp { .. } => ("timestamp < {timestamp}", "DESC"),
                 PaginationBy::AfterTimestamp { .. } => ("timestamp > {timestamp}", "ASC"),
                 PaginationBy::BeforeId { .. } => ("id < {id}", "DESC"),
@@ -212,7 +184,6 @@ impl DatabaseEventFilter for DbPricePoolFilter {
                 (
                     record.id as EventId,
                     PricePoolEventData {
-                        block_height: record.block_height as u64,
                         pool_id: record.pool_id,
                         token0: record.token0.parse().unwrap(),
                         token1: record.token1.parse().unwrap(),

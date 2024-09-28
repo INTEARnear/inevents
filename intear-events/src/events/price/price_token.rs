@@ -5,7 +5,7 @@ use std::str::FromStr;
 use inevents::actix_web::http::StatusCode;
 #[cfg(feature = "impl")]
 use inevents::events::event::{CustomHttpEndpoint, EventId, PaginationBy};
-use inindexer::near_indexer_primitives::types::{AccountId, BlockHeight};
+use inindexer::near_indexer_primitives::types::AccountId;
 use inindexer::near_utils::dec_format;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -248,7 +248,6 @@ impl FromStr for OhlcResolution {
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PriceTokenEventData {
-    pub block_height: BlockHeight,
     #[schemars(with = "String")]
     pub token: AccountId,
     #[serde(with = "stringified")]
@@ -302,14 +301,13 @@ impl DatabaseEventAdapter for DbPriceTokenAdapter {
     ) -> Result<PgQueryResult, sqlx::Error> {
         sqlx::query!(
             r#"
-            INSERT INTO price_token (timestamp, block_height, token, price_usd)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO price_token (timestamp, token, price_usd)
+            VALUES ($1, $2, $3)
             "#,
             chrono::DateTime::from_timestamp(
                 (event.timestamp_nanosec / 1_000_000_000) as i64,
                 (event.timestamp_nanosec % 1_000_000_000) as u32
             ),
-            event.block_height as i64,
             event.token.to_string(),
             event.price_usd,
         )
@@ -328,41 +326,20 @@ impl DatabaseEventFilter for DbPriceTokenFilter {
         pool: &Pool<Postgres>,
         testnet: bool,
     ) -> Result<Vec<(EventId, <Self::Event as Event>::EventData)>, sqlx::Error> {
-        let limit = pagination.limit as i64;
+        if let PaginationBy::BeforeBlockHeight { .. } | PaginationBy::AfterBlockHeight { .. } =
+            pagination.pagination_by
+        {
+            return Ok(Vec::new()); // Doesn't have block height
+        }
         #[derive(Debug, sqlx::FromRow)]
         struct SqlPriceTokenEventData {
             id: i64,
             timestamp: chrono::DateTime<chrono::Utc>,
-            block_height: i64,
             token: String,
             price_usd: BigDecimal,
         }
-        let block_height = if let PaginationBy::BeforeBlockHeight { block_height }
-        | PaginationBy::AfterBlockHeight { block_height } =
-            pagination.pagination_by
-        {
-            block_height as i64
-        } else {
-            -1
-        };
-        let timestamp = if let PaginationBy::BeforeTimestamp { timestamp_nanosec }
-        | PaginationBy::AfterTimestamp { timestamp_nanosec } =
-            pagination.pagination_by
-        {
-            chrono::DateTime::from_timestamp(
-                (timestamp_nanosec / 1_000_000_000) as i64,
-                (timestamp_nanosec % 1_000_000_000) as u32,
-            )
-        } else {
-            chrono::DateTime::from_timestamp(0, 0)
-        };
-        let id = if let PaginationBy::BeforeId { id } | PaginationBy::AfterId { id } =
-            pagination.pagination_by
-        {
-            id as i32
-        } else {
-            -1
-        };
+        let (timestamp, id, limit) =
+            crate::events::get_pagination_params(pagination, pool, testnet).await;
 
         let token = self.token.as_ref().map(|t| t.as_str());
         sqlx_conditional_queries::conditional_query_as!(
@@ -376,8 +353,7 @@ impl DatabaseEventFilter for DbPriceTokenFilter {
             LIMIT {limit}
             "#,
             #(time, order) = match &pagination.pagination_by {
-                PaginationBy::BeforeBlockHeight { .. } => ("block_height < {block_height}", "DESC"),
-                PaginationBy::AfterBlockHeight { .. } => ("block_height > {block_height}", "ASC"),
+                PaginationBy::BeforeBlockHeight { ..} | PaginationBy::AfterBlockHeight { .. } => ("true", "DESC"),
                 PaginationBy::BeforeTimestamp { .. } => ("timestamp < {timestamp}", "DESC"),
                 PaginationBy::AfterTimestamp { .. } => ("timestamp > {timestamp}", "ASC"),
                 PaginationBy::BeforeId { .. } => ("id < {id}", "DESC"),
@@ -399,7 +375,6 @@ impl DatabaseEventFilter for DbPriceTokenFilter {
                     (
                         record.id as EventId,
                         PriceTokenEventData {
-                            block_height: record.block_height as u64,
                             token: record.token.parse().unwrap(),
                             price_usd: record.price_usd,
                             timestamp_nanosec: record.timestamp.timestamp_nanos_opt().unwrap()
