@@ -70,15 +70,24 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
         &mut self,
         start_id: impl Into<String>,
     ) -> Result<Vec<(String, T)>, anyhow::Error> {
-        let result = self.connection
-            .xread_options::<_, _, Option<Vec<Vec<(String, Vec<Vec<(String, Vec<(String, String)>)>>)>>>>(
-                &[&self.stream_name],
-                &[start_id.into()],
-                &StreamReadOptions::default()
-                    .count(10000)
-                    .block(Duration::from_millis(250).as_millis() as usize),
-            )
-            .await?;
+        let start_id = start_id.into();
+        let result = loop {
+            match self.connection
+                .xread_options::<_, _, Option<Vec<Vec<(String, Vec<Vec<(String, Vec<(String, String)>)>>)>>>>(
+                    &[&self.stream_name],
+                    &[&start_id],
+                    &StreamReadOptions::default()
+                        .count(10000)
+                        .block(Duration::from_millis(250).as_millis() as usize),
+                )
+                .await {
+                    Ok(result) => break result,
+                    Err(err) => {
+                        log::warn!("Failed to read an event from {}: {err:?}", self.stream_name);
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                    }
+            }
+        };
         match result {
             Some(result) => Ok(result
                 .into_iter()
@@ -117,7 +126,7 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
 
             let join_handle = tokio::spawn(async move {
                 while let Some((index, value)) = rx.recv().await {
-                    connection
+                    while let Err(err) = connection
                         .xadd_maxlen::<_, _, _, _, ()>(
                             &stream_name,
                             StreamMaxlen::Approx(max_len),
@@ -130,9 +139,10 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
                             )],
                         )
                         .await
-                        .unwrap_or_else(|err| {
-                            panic!("Failed to emit {stream_name} event at index {index}: {err:?}")
-                        });
+                    {
+                        log::warn!("Failed to emit {stream_name} event at index {index}: {err:?}");
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                    }
                 }
             });
 
