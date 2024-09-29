@@ -125,8 +125,8 @@ impl DatabaseEventFilter for DbFtMintFilter {
 
         let token_id = self.token_id.as_ref().map(|c| c.as_str());
         let owner_id = self.owner_id.as_ref().map(|o| o.as_str());
-        let amount = self.amount.as_ref().map(|a| BigDecimal::from(a));
-        let min_amount = self.min_amount.as_ref().map(|a| BigDecimal::from(a));
+        let amount = self.amount.as_ref().map(BigDecimal::from);
+        let min_amount = self.min_amount.as_ref().map(BigDecimal::from);
         sqlx_conditional_queries::conditional_query_as!(
             SqlFtMintEventData,
             r#"
@@ -165,7 +165,8 @@ impl DatabaseEventFilter for DbFtMintFilter {
                         record.id as EventId,
                         FtMintEventData {
                             owner_id: record.owner_id.parse().unwrap(),
-                            amount: num_traits::ToPrimitive::to_u128(&record.amount).unwrap_or_default(),
+                            amount: num_traits::ToPrimitive::to_u128(&record.amount)
+                                .unwrap_or_default(),
                             memo: record.memo,
                             transaction_id: record.transaction_id.parse().unwrap(),
                             receipt_id: record.receipt_id.parse().unwrap(),

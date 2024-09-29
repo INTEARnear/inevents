@@ -67,10 +67,10 @@ pub struct DbFtTransferFilter {
     pub new_owner_id: Option<AccountId>,
     #[schemars(with = "Option<String>")]
     pub involved_account_ids: Option<String>,
-    #[serde(with = "dec_format")]
+    #[serde(with = "dec_format", default)]
     #[schemars(with = "Option<String>")]
     pub amount: Option<Balance>,
-    #[serde(with = "dec_format")]
+    #[serde(with = "dec_format", default)]
     #[schemars(with = "Option<String>")]
     pub min_amount: Option<Balance>,
 }
@@ -183,7 +183,7 @@ impl DatabaseEventFilter for DbFtTransferFilter {
                         FtTransferEventData {
                             old_owner_id: record.old_owner_id.parse().unwrap(),
                             new_owner_id: record.new_owner_id.parse().unwrap(),
-                            amount: record.amount.to_string().parse().unwrap(),
+                            amount: num_traits::ToPrimitive::to_u128(&record.amount).unwrap_or_default(),
                             memo: record.memo,
                             transaction_id: record.transaction_id.parse().unwrap(),
                             receipt_id: record.receipt_id.parse().unwrap(),

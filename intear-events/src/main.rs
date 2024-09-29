@@ -33,6 +33,9 @@ use intear_events::events::{
 #[cfg(feature = "impl")]
 #[tokio::main]
 async fn main() {
+    use intear_events::events::ft::ft_burn::FtBurnEvent;
+    use intear_events::events::ft::ft_mint::FtMintEvent;
+    use intear_events::events::ft::ft_transfer::FtTransferEvent;
     use intear_events::events::newcontract::meme_cooking_token::NewMemeCookingTokenEvent;
     use intear_events::events::trade::memecooking_deposit::MemeCookingDepositEvent;
     use intear_events::events::trade::memecooking_withdraw::MemeCookingWithdrawEvent;
@@ -86,6 +89,9 @@ async fn main() {
         NewMemeCookingTokenEvent,
         TxTransactionEvent,
         TxReceiptEvent,
+        FtMintEvent,
+        FtTransferEvent,
+        FtBurnEvent
     );
 
     let mut futures = Vec::new();

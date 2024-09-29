@@ -60,6 +60,7 @@ pub async fn get_pagination_params(
     }
 }
 
+pub mod ft;
 pub mod log;
 pub mod newcontract;
 pub mod nft;
@@ -69,4 +70,3 @@ pub mod socialdb;
 pub mod tps;
 pub mod trade;
 pub mod transactions;
-pub mod ft;
