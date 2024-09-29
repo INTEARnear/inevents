@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT *\n            FROM trade_pool_change_testnet\n            WHERE true\n                AND ($1::TEXT IS NULL OR pool_id = $1)\n            ORDER BY id DESC\n            LIMIT $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "block_height",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "receipt_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "pool_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "pool",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "cbeec2d0afd3b6c3a255f1e667fba049f7f5b1a4ca8447ea6030e980ea6c9eb8"
+}

@@ -1,0 +1,84 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT *\n            FROM memecooking_deposit_testnet\n            WHERE true\n                AND ($1::BIGINT IS NULL OR meme_id = $1)\n                AND ($2::TEXT IS NULL OR trader = $2)\n            ORDER BY id ASC\n            LIMIT $3\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "trader",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "block_height",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "transaction_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "receipt_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "meme_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "amount",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 8,
+        "name": "protocol_fee",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 9,
+        "name": "referrer",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "referrer_fee",
+        "type_info": "Numeric"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "512bfcf834a69f622a3c2226dc6028adfd1379f7d2768fbe652d651b89a8dcc7"
+}

@@ -1,0 +1,85 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT *\n            FROM tx_transactions_testnet\n            WHERE true\n                AND ($1::TEXT IS NULL OR signer_id = $1)\n                AND ($2::TEXT IS NULL OR receiver_id = $2)\n                AND ($3::TEXT IS NULL OR transaction_id = $3)\n            ORDER BY id DESC\n            LIMIT $4\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "block_height",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "signer_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "public_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "nonce",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "receiver_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "actions",
+        "type_info": "JsonbArray"
+      },
+      {
+        "ordinal": 8,
+        "name": "priority_fee",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "signature",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "transaction_id",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "c1533a794f3cddc7efeb034c0eb965b84bffb1efb3af399bfc5341eb0eca6c51"
+}

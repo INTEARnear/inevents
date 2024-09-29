@@ -1,0 +1,122 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT *\n            FROM potlock_pot_donation\n            WHERE timestamp < $1\n                AND ($2::TEXT IS NULL OR pot_id = $2)\n                AND ($3::TEXT IS NULL OR donor_id = $3)\n                AND ($4::TEXT IS NULL OR referrer_id = $4)\n            ORDER BY timestamp DESC\n            LIMIT $5\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "transaction_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "receipt_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "block_height",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "donation_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "pot_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "donor_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "total_amount",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 9,
+        "name": "net_amount",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 10,
+        "name": "message",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "donated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "referrer_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "referrer_fee",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 14,
+        "name": "protocol_fee",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 15,
+        "name": "chef_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "chef_fee",
+        "type_info": "Numeric"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Text",
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "098ecddd8643fd2caa687cc190205b2f1ed661b6705e00505bcdc65e92e1ec04"
+}

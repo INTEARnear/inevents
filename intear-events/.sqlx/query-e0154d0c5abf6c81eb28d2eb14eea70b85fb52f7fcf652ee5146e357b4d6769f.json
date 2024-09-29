@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO potlock_donation (timestamp, transaction_id, receipt_id, block_height, donation_id, donor_id, total_amount, ft_id, message, donated_at, project_id, protocol_fee, referrer_id, referrer_fee)\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Text",
+        "Text",
+        "Int8",
+        "Int8",
+        "Text",
+        "Numeric",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Text",
+        "Numeric",
+        "Text",
+        "Numeric"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e0154d0c5abf6c81eb28d2eb14eea70b85fb52f7fcf652ee5146e357b4d6769f"
+}

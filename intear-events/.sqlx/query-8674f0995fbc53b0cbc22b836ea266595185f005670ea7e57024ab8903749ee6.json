@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO moretps (timestamp, block_height, receipt_id, transaction_id, claimed_account_id, claimed_parent_account_id, round_account_id, round_parent_account_id, is_success)\n                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8674f0995fbc53b0cbc22b836ea266595185f005670ea7e57024ab8903749ee6"
+}

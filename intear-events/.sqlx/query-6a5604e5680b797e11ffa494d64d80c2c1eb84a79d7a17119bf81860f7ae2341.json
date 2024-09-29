@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO tx_receipts_testnet (timestamp, block_height, receipt_id, transaction_id, executor_id, success)\n                VALUES ($1, $2, $3, $4, $5, $6)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6a5604e5680b797e11ffa494d64d80c2c1eb84a79d7a17119bf81860f7ae2341"
+}

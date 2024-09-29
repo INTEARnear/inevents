@@ -1,0 +1,74 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT *\n            FROM socialdb_index\n            WHERE timestamp < $1\n                AND ($2::TEXT IS NULL OR account_id = $2)\n                AND ($3::TEXT IS NULL OR index_type = $3)\n                AND ($4::JSONB IS NULL OR index_key = $4)\n            ORDER BY id DESC\n            LIMIT $5\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "transaction_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "receipt_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "block_height",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "account_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "index_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "index_key",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 8,
+        "name": "index_value",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b7eb5da0fd0145ef698d3e1455bc738ac5cfb9104e283103fdbc2bc1da9e4671"
+}

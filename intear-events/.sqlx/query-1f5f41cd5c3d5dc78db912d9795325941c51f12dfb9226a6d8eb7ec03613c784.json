@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO memecooking_create_token_testnet (timestamp, transaction_id, receipt_id, block_height, meme_id, token_id, total_supply, pool_id)\n                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Text",
+        "Text",
+        "Int8",
+        "Int8",
+        "Text",
+        "Numeric",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1f5f41cd5c3d5dc78db912d9795325941c51f12dfb9226a6d8eb7ec03613c784"
+}

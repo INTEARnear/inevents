@@ -1,0 +1,54 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT *\n            FROM trade_pool_change\n            WHERE timestamp < $1\n                AND ($2::TEXT IS NULL OR pool_id = $2)\n            ORDER BY id DESC\n            LIMIT $3\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "block_height",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "receipt_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "pool_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "pool",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e0f8896ae99ee3a0d89b40b25e4057cd89c6d0ccf9da146d55bcbd3c8b6da099"
+}

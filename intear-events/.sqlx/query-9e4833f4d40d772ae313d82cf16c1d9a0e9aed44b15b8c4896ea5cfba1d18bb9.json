@@ -1,0 +1,73 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT *\n            FROM memecooking_create_token\n            WHERE timestamp < $1\n            AND ($2::BIGINT IS NULL OR meme_id = $2)\n            AND ($3::TEXT IS NULL OR token_id = $3)\n            ORDER BY id DESC\n            LIMIT $4\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "block_height",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "transaction_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "receipt_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "meme_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "token_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "total_supply",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 8,
+        "name": "pool_id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Int8",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "9e4833f4d40d772ae313d82cf16c1d9a0e9aed44b15b8c4896ea5cfba1d18bb9"
+}

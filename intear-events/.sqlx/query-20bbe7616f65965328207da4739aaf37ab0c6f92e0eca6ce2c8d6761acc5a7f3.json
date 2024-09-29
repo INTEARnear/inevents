@@ -1,0 +1,81 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT *\n            FROM moretps_testnet\n            WHERE timestamp < $1\n                AND ($2::TEXT IS NULL OR claimed_account_id = $2)\n                AND ($3::TEXT IS NULL OR claimed_parent_account_id = $3)\n                AND ($4::TEXT IS NULL OR round_account_id = $4)\n                AND ($5::TEXT IS NULL OR round_parent_account_id = $5)\n            ORDER BY id DESC\n            LIMIT $6\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "transaction_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "receipt_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "block_height",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "claimed_account_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "claimed_parent_account_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "round_account_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "round_parent_account_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "is_success",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "20bbe7616f65965328207da4739aaf37ab0c6f92e0eca6ce2c8d6761acc5a7f3"
+}
