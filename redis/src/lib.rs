@@ -124,14 +124,14 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
                             format!("{index}-*"),
                             &[(
                                 "event",
-                                serde_json::to_string(&value).unwrap_or_else(|_| {
-                                    panic!("Failed to serialize {stream_name} event")
+                                serde_json::to_string(&value).unwrap_or_else(|err| {
+                                    panic!("Failed to serialize {stream_name} event: {err:?}")
                                 }),
                             )],
                         )
                         .await
-                        .unwrap_or_else(|_| {
-                            panic!("Failed to emit {stream_name} event at index {index}")
+                        .unwrap_or_else(|err| {
+                            panic!("Failed to emit {stream_name} event at index {index}: {err:?}")
                         });
                 }
             });
