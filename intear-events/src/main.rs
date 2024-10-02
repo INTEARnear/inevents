@@ -37,6 +37,7 @@ async fn main() {
     use intear_events::events::ft::ft_mint::FtMintEvent;
     use intear_events::events::ft::ft_transfer::FtTransferEvent;
     use intear_events::events::newcontract::meme_cooking_token::NewMemeCookingTokenEvent;
+    use intear_events::events::trade::liquidity_pool::LiquidityPoolEvent;
     use intear_events::events::trade::memecooking_deposit::MemeCookingDepositEvent;
     use intear_events::events::trade::memecooking_withdraw::MemeCookingWithdrawEvent;
     use intear_events::events::transactions::tx_receipt::TxReceiptEvent;
@@ -91,7 +92,8 @@ async fn main() {
         TxReceiptEvent,
         FtMintEvent,
         FtTransferEvent,
-        FtBurnEvent
+        FtBurnEvent,
+        LiquidityPoolEvent,
     );
 
     let mut futures = Vec::new();
