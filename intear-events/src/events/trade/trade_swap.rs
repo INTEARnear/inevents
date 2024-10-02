@@ -210,7 +210,7 @@ impl DatabaseEventFilter for DbTradeSwapFilter {
                 AND ({trader}::TEXT IS NULL OR trader = {trader})
                 AND ({involved_token_account_ids}::TEXT[] IS NULL OR balance_changes ?& {involved_token_account_ids})
             ORDER BY id {#order}
-            LIMIT {limit}
+            LIMIT greatest({limit}, 16::bigint) -- db gives better strategy for 16+ limit, so limiting it on server side
             "#,
             #(time, order) = match &pagination.pagination_by {
                 PaginationBy::BeforeTimestamp { .. }
@@ -232,6 +232,7 @@ impl DatabaseEventFilter for DbTradeSwapFilter {
         .map(|records| {
             records
             .into_iter()
+            .take(limit as usize) // we added greatest(limit, 16) in query
             .map(|record| {
                 (
                     record.id as u64,
