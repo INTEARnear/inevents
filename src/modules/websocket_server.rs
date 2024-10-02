@@ -223,7 +223,7 @@ struct UntypedEvent(&'static str, String, serde_json::Value, bool);
 pub struct EventWebSocket {
     last_heartbeat: Instant,
     filter_constructor: fn(&str) -> Result<FilterFn, anyhow::Error>,
-    filter: FilterFn,
+    filter: Option<FilterFn>,
     server: Addr<Server>,
     event_identifier: &'static str,
     testnet: bool,
@@ -295,7 +295,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for EventWebSocket {
             Ok(ws::Message::Text(text)) => {
                 let text = text.to_string();
                 if let Ok(filter) = (self.filter_constructor)(&text) {
-                    self.filter = filter;
+                    self.filter = Some(filter);
                 }
             }
             _ => ctx.stop(),
@@ -307,7 +307,7 @@ impl Handler<Arc<UntypedEvent>> for EventWebSocket {
     type Result = ();
 
     fn handle(&mut self, msg: Arc<UntypedEvent>, ctx: &mut Self::Context) -> Self::Result {
-        if !(self.filter)(&msg.2) {
+        if self.filter.is_none() || !(self.filter.as_ref().unwrap())(&msg.2) {
             return;
         }
 
@@ -337,7 +337,7 @@ fn create_route(event: RawEvent, testnet: bool) -> impl HttpServiceFactory {
                 EventWebSocket {
                     last_heartbeat: Instant::now(),
                     filter_constructor: event.realtime_filter_constructor,
-                    filter: Box::new(|_| true), // no filter by default
+                    filter: None,
                     server: server.get_ref().clone(),
                     event_identifier: event.event_identifier,
                     testnet,

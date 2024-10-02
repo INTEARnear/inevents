@@ -257,10 +257,7 @@ fn create_route(event: RawEvent, testnet: bool) -> impl HttpServiceFactory {
               pagination: web::Query<PaginationParameters>,
               request: HttpRequest| async move {
             let limit = pagination.limit;
-            let is_sort_by_newest = match pagination.pagination_by {
-                PaginationBy::Newest => true,
-                _ => false,
-            };
+            let is_sort_by_newest = matches!(pagination.pagination_by, PaginationBy::Newest);
             if limit > MAX_EVENTS_PER_REQUEST {
                 return Err(AppError::TooManyBlocks {
                     requested: limit,
