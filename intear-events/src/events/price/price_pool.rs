@@ -78,8 +78,6 @@ mod stringified {
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct DbPricePoolFilter {
     pub pool_id: Option<PoolId>,
-    /// Comma-separated list of token account IDs
-    pub involved_token_account_ids: Option<String>,
 }
 
 pub struct DbPricePoolAdapter;
@@ -136,19 +134,7 @@ impl DatabaseEventFilter for DbPricePoolFilter {
         let (timestamp, id, limit) =
             crate::events::get_pagination_params(pagination, pool, testnet).await;
 
-        let involved_token_account_ids = &self
-            .involved_token_account_ids
-            .as_ref()
-            .map(|s| s.split(',').map(|s| s.to_string()).collect::<Vec<_>>())
-            .unwrap_or_default();
-
         let pool_id = self.pool_id.as_deref();
-        let involved_token_account_ids = if involved_token_account_ids.is_empty() {
-            None
-        } else {
-            Some(&involved_token_account_ids[..])
-        };
-        // let involved_token_account_ids = involved_token_account_ids.as_deref();
 
         sqlx_conditional_queries::conditional_query_as!(
             SqlPricePoolEventData,
@@ -157,7 +143,6 @@ impl DatabaseEventFilter for DbPricePoolFilter {
             FROM price_pool{#testnet}
             WHERE {#time}
                 AND ({pool_id}::TEXT IS NULL OR pool_id = {pool_id})
-                AND ({involved_token_account_ids}::TEXT[] IS NULL OR ARRAY[token0, token1] @> {involved_token_account_ids})
             ORDER BY id {#order}
             LIMIT {limit}
             "#,

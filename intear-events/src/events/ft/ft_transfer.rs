@@ -138,7 +138,9 @@ impl DatabaseEventFilter for DbFtTransferFilter {
             .involved_account_ids
             .as_ref()
             .map(|ids| ids.split(',').map(|s| s.to_owned()).collect::<Vec<_>>());
-        let involved_account_ids = involved_account_ids.as_deref();
+        #[allow(clippy::get_first)]
+        let first_involved_account_id = involved_account_ids.as_ref().and_then(|ids| ids.get(0));
+        let second_involved_account_id = involved_account_ids.as_ref().and_then(|ids| ids.get(1));
         let amount = self.amount.as_ref().map(|a| BigDecimal::from(*a));
         let min_amount = self.min_amount.as_ref().map(|a| BigDecimal::from(*a));
 
@@ -152,11 +154,18 @@ impl DatabaseEventFilter for DbFtTransferFilter {
                 AND ({old_owner_id}::TEXT IS NULL OR old_owner_id = {old_owner_id})
                 AND ({new_owner_id}::TEXT IS NULL OR new_owner_id = {new_owner_id})
                 AND ({amount}::NUMERIC IS NULL OR amount = {amount})
-                AND ({involved_account_ids}::TEXT[] IS NULL OR ARRAY[old_owner_id, new_owner_id] @> {involved_account_ids})
+                AND {#involved_account_ids}
                 AND ({min_amount}::NUMERIC IS NULL OR amount >= {min_amount})
             ORDER BY id {#order}
             LIMIT {limit}
             "#,
+            #involved_account_ids = match involved_account_ids.as_ref().map(|ids| ids.len()).unwrap_or_default() {
+                0 => "true",
+                1 => "old_owner_id = {first_involved_account_id} OR new_owner_id = {first_involved_account_id}",
+                2 => "(old_owner_id = {first_involved_account_id} AND new_owner_id = {second_involved_account_id})
+                    OR (old_owner_id = {second_involved_account_id} AND new_owner_id = {first_involved_account_id})",
+                3.. => "false",
+            },
             #(time, order) = match &pagination.pagination_by {
                 PaginationBy::BeforeTimestamp { .. }
                     | PaginationBy::BeforeBlockHeight { .. } => ("timestamp < {timestamp}", "DESC"),
@@ -183,7 +192,8 @@ impl DatabaseEventFilter for DbFtTransferFilter {
                         FtTransferEventData {
                             old_owner_id: record.old_owner_id.parse().unwrap(),
                             new_owner_id: record.new_owner_id.parse().unwrap(),
-                            amount: num_traits::ToPrimitive::to_u128(&record.amount).unwrap_or_default(),
+                            amount: num_traits::ToPrimitive::to_u128(&record.amount)
+                                .unwrap_or_default(),
                             memo: record.memo,
                             transaction_id: record.transaction_id.parse().unwrap(),
                             receipt_id: record.receipt_id.parse().unwrap(),

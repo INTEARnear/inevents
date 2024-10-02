@@ -135,6 +135,9 @@ impl DatabaseEventFilter for DbNftTransferFilter {
             .involved_account_ids
             .as_ref()
             .map(|ids| ids.split(',').map(|s| s.to_owned()).collect::<Vec<_>>());
+        #[allow(clippy::get_first)]
+        let first_involved_account_id = involved_account_ids.as_ref().and_then(|ids| ids.get(0));
+        let second_involved_account_id = involved_account_ids.as_ref().and_then(|ids| ids.get(1));
         let involved_account_ids = involved_account_ids.as_deref();
 
         sqlx_conditional_queries::conditional_query_as!(
@@ -146,10 +149,17 @@ impl DatabaseEventFilter for DbNftTransferFilter {
                 AND ({contract_id}::TEXT IS NULL OR contract_id = {contract_id})
                 AND ({old_owner_id}::TEXT IS NULL OR old_owner_id = {old_owner_id})
                 AND ({new_owner_id}::TEXT IS NULL OR new_owner_id = {new_owner_id})
-                AND ({involved_account_ids}::TEXT[] IS NULL OR ARRAY[old_owner_id, new_owner_id] @> {involved_account_ids})
+                AND {#involved_account_ids}
             ORDER BY id {#order}
             LIMIT {limit}
             "#,
+            #involved_account_ids = match involved_account_ids.as_ref().map(|ids| ids.len()).unwrap_or_default() {
+                0 => "true",
+                1 => "old_owner_id = {first_involved_account_id} OR new_owner_id = {first_involved_account_id}",
+                2 => "(old_owner_id = {first_involved_account_id} AND new_owner_id = {second_involved_account_id})
+                    OR (old_owner_id = {second_involved_account_id} AND new_owner_id = {first_involved_account_id})",
+                3.. => "false",
+            },
             #(time, order) = match &pagination.pagination_by {
                 PaginationBy::BeforeTimestamp { .. }
                     | PaginationBy::BeforeBlockHeight { .. } => ("timestamp < {timestamp}", "DESC"),
