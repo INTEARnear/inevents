@@ -60,6 +60,12 @@ pub struct NewMemeCookingMemeEventData {
     pub reference_hash: String,
     #[schemars(with = "String")]
     pub deposit_token_id: AccountId,
+    #[serde(with = "dec_format")]
+    #[schemars(with = "String")]
+    pub soft_cap: Balance,
+    #[serde(with = "dec_format")]
+    #[schemars(with = "String")]
+    pub hard_cap: Balance,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -84,8 +90,8 @@ impl DatabaseEventAdapter for DbNewMemeCookingMemeAdapter {
         if testnet {
             sqlx::query!(
                 r#"
-                INSERT INTO new_memecooking_meme_testnet (timestamp, transaction_id, receipt_id, block_height, meme_id, owner, end_timestamp_ms, name, symbol, decimals, total_supply, reference, reference_hash, deposit_token_id)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                INSERT INTO new_memecooking_meme_testnet (timestamp, transaction_id, receipt_id, block_height, meme_id, owner, end_timestamp_ms, name, symbol, decimals, total_supply, reference, reference_hash, deposit_token_id, soft_cap, hard_cap)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
                 "#,
                 chrono::DateTime::from_timestamp((event.block_timestamp_nanosec / 1_000_000_000) as i64, (event.block_timestamp_nanosec % 1_000_000_000) as u32),
                 event.transaction_id.to_string(),
@@ -101,12 +107,14 @@ impl DatabaseEventAdapter for DbNewMemeCookingMemeAdapter {
                 event.reference,
                 event.reference_hash,
                 event.deposit_token_id.as_str(),
+                BigDecimal::from(event.soft_cap),
+                BigDecimal::from(event.hard_cap),
             ).execute(pool).await
         } else {
             sqlx::query!(
                 r#"
-                INSERT INTO new_memecooking_meme (timestamp, transaction_id, receipt_id, block_height, meme_id, owner, end_timestamp_ms, name, symbol, decimals, total_supply, reference, reference_hash, deposit_token_id)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                INSERT INTO new_memecooking_meme_testnet (timestamp, transaction_id, receipt_id, block_height, meme_id, owner, end_timestamp_ms, name, symbol, decimals, total_supply, reference, reference_hash, deposit_token_id, soft_cap, hard_cap)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
                 "#,
                 chrono::DateTime::from_timestamp((event.block_timestamp_nanosec / 1_000_000_000) as i64, (event.block_timestamp_nanosec % 1_000_000_000) as u32),
                 event.transaction_id.to_string(),
@@ -122,6 +130,8 @@ impl DatabaseEventAdapter for DbNewMemeCookingMemeAdapter {
                 event.reference,
                 event.reference_hash,
                 event.deposit_token_id.as_str(),
+                BigDecimal::from(event.soft_cap),
+                BigDecimal::from(event.hard_cap),
             ).execute(pool).await
         }
     }
@@ -154,6 +164,8 @@ impl DatabaseEventFilter for NewMemeCookingMemeFilter {
             reference: String,
             reference_hash: String,
             deposit_token_id: String,
+            soft_cap: BigDecimal,
+            hard_cap: BigDecimal,
         }
         let (timestamp, id, limit) =
             crate::events::get_pagination_params(pagination, pool, testnet).await;
@@ -219,6 +231,26 @@ impl DatabaseEventFilter for NewMemeCookingMemeFilter {
                             reference: record.reference,
                             reference_hash: record.reference_hash,
                             deposit_token_id: record.deposit_token_id.parse().unwrap(),
+                            soft_cap: num_traits::ToPrimitive::to_u128(&record.soft_cap)
+                                .unwrap_or_else(|| {
+                                    log::warn!(
+                                        "Failed to convert number {} to u128 on {}:{}",
+                                        &record.soft_cap,
+                                        file!(),
+                                        line!()
+                                    );
+                                    Default::default()
+                                }),
+                            hard_cap: num_traits::ToPrimitive::to_u128(&record.hard_cap)
+                                .unwrap_or_else(|| {
+                                    log::warn!(
+                                        "Failed to convert number {} to u128 on {}:{}",
+                                        &record.hard_cap,
+                                        file!(),
+                                        line!()
+                                    );
+                                    Default::default()
+                                }),
                         },
                     )
                 })
