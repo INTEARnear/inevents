@@ -1,5 +1,6 @@
 // Actix needs a single-threaded context, but we don't want that, so we're running 2 tokio runtimes in parallel.
 
+use std::convert::Infallible;
 use std::{
     collections::HashMap,
     fs::File,
@@ -383,7 +384,7 @@ fn launch_event_stream(
                         event,
                         testnet,
                     ));
-                    async { Ok(()) }
+                    async { Ok::<(), Infallible>(()) }
                 },
                 || cancellation_token.is_cancelled(),
             )

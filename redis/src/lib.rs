@@ -1,8 +1,8 @@
+use std::fmt::Debug;
 use std::future::Future;
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use anyhow::Context;
 use redis::{
     aio::ConnectionManager,
     streams::{StreamMaxlen, StreamReadOptions},
@@ -21,6 +21,22 @@ pub struct RedisEventStream<T: Serialize + for<'de> Deserialize<'de> + Send + Sy
     _marker: std::marker::PhantomData<T>,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum EventStreamError<E> {
+    #[error("Can't get last id, redis error: {0}")]
+    CantGetLastId(redis::RedisError),
+    #[error("Error in event handler: {0}")]
+    EventHandlerError(E),
+    #[error("Can't set last id, redis error: {0}")]
+    CantSetLastId(redis::RedisError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum EventEmitError<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> {
+    #[error("Channel is closed, event not emitted")]
+    ChannelClosed(#[source] tokio::sync::mpsc::error::SendError<(String, T)>),
+}
+
 impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEventStream<T> {
     pub fn new(connection: ConnectionManager, stream_name: impl Into<String>) -> Self {
         Self {
@@ -33,43 +49,41 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
 
     /// Reads events from the stream, runs forever. Last read index will is saved in
     /// Redis by key "{reader_id}-{stream_name}".
-    pub async fn start_reading_events<
-        R: Future<Output = Result<(), anyhow::Error>>,
-        F: FnMut(T) -> R,
-    >(
+    pub async fn start_reading_events<E, R: Future<Output = Result<(), E>>, F: FnMut(T) -> R>(
         &mut self,
         reader_id: impl Into<String>,
         mut f: F,
         should_stop: impl Fn() -> bool,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), EventStreamError<E>> {
         let mut con = self.connection.clone();
         let reader_id = reader_id.into();
         let last_id: Option<String> = con
             .get(format!("{}-{}", &reader_id, self.stream_name))
-            .await?;
+            .await
+            .map_err(EventStreamError::CantGetLastId)?;
         let mut last_id = last_id.unwrap_or("0".to_string());
         loop {
             if should_stop() {
                 break Ok(());
             }
-            let events = self.read_event(&last_id).await?;
+            let events = self.read_event(&last_id).await;
             if events.is_empty() {
                 tokio::task::yield_now().await;
                 continue;
             }
             for (id, event) in events {
-                f(event).await.context("Processing event")?;
+                f(event)
+                    .await
+                    .map_err(|e| EventStreamError::EventHandlerError(e))?;
                 last_id = id;
             }
             con.set(format!("{}-{}", &reader_id, self.stream_name), &last_id)
-                .await?;
+                .await
+                .map_err(EventStreamError::CantSetLastId)?;
         }
     }
 
-    pub async fn read_event(
-        &mut self,
-        start_id: impl Into<String>,
-    ) -> Result<Vec<(String, T)>, anyhow::Error> {
+    pub async fn read_event(&mut self, start_id: impl Into<String>) -> Vec<(String, T)> {
         let start_id = start_id.into();
         let result = loop {
             match self.connection
@@ -89,7 +103,7 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
             }
         };
         match result {
-            Some(result) => Ok(result
+            Some(result) => result
                 .into_iter()
                 .flatten()
                 .flat_map(|(_stream_id, stream)| {
@@ -103,8 +117,8 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
                         })
                         .collect::<Vec<_>>()
                 })
-                .collect()),
-            None => Ok(vec![]),
+                .collect(),
+            None => vec![],
         }
     }
 
@@ -117,7 +131,7 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
         index: impl ToString,
         value: T,
         max_len: usize,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), EventEmitError<T>> {
         let (_, tx) = self.queue.get_or_init(|| {
             let (tx, mut rx) = tokio::sync::mpsc::channel(max_len);
 
@@ -150,9 +164,7 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
         });
         match tx.send((index.to_string(), value)).await {
             Ok(()) => Ok(()),
-            Err(e) => Err(anyhow::anyhow!(
-                "Couldn't send event {e:?} because a channel is closed"
-            )),
+            Err(e) => Err(EventEmitError::ChannelClosed(e)),
         }
     }
 
