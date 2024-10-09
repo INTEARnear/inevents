@@ -64,8 +64,8 @@ pub struct NewMemeCookingMemeEventData {
     #[schemars(with = "String")]
     pub soft_cap: Balance,
     #[serde(with = "dec_format")]
-    #[schemars(with = "String")]
-    pub hard_cap: Balance,
+    #[schemars(with = "Option<String>")]
+    pub hard_cap: Option<Balance>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -108,7 +108,7 @@ impl DatabaseEventAdapter for DbNewMemeCookingMemeAdapter {
                 event.reference_hash,
                 event.deposit_token_id.as_str(),
                 BigDecimal::from(event.soft_cap),
-                BigDecimal::from(event.hard_cap),
+                event.hard_cap.map(BigDecimal::from)
             ).execute(pool).await
         } else {
             sqlx::query!(
@@ -131,7 +131,7 @@ impl DatabaseEventAdapter for DbNewMemeCookingMemeAdapter {
                 event.reference_hash,
                 event.deposit_token_id.as_str(),
                 BigDecimal::from(event.soft_cap),
-                BigDecimal::from(event.hard_cap),
+                event.hard_cap.map(BigDecimal::from)
             ).execute(pool).await
         }
     }
@@ -165,7 +165,7 @@ impl DatabaseEventFilter for NewMemeCookingMemeFilter {
             reference_hash: String,
             deposit_token_id: String,
             soft_cap: BigDecimal,
-            hard_cap: BigDecimal,
+            hard_cap: Option<BigDecimal>,
         }
         let (timestamp, id, limit) =
             crate::events::get_pagination_params(pagination, pool, testnet).await;
@@ -241,16 +241,17 @@ impl DatabaseEventFilter for NewMemeCookingMemeFilter {
                                     );
                                     Default::default()
                                 }),
-                            hard_cap: num_traits::ToPrimitive::to_u128(&record.hard_cap)
-                                .unwrap_or_else(|| {
+                            hard_cap: record.hard_cap.map(|hard_cap| {
+                                num_traits::ToPrimitive::to_u128(&hard_cap).unwrap_or_else(|| {
                                     log::warn!(
                                         "Failed to convert number {} to u128 on {}:{}",
-                                        &record.hard_cap,
+                                        &hard_cap,
                                         file!(),
                                         line!()
                                     );
                                     Default::default()
-                                }),
+                                })
+                            }),
                         },
                     )
                 })
