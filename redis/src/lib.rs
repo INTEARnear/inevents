@@ -27,8 +27,6 @@ pub enum EventStreamError<E> {
     CantGetLastId(redis::RedisError),
     #[error("Error in event handler: {0}")]
     EventHandlerError(E),
-    #[error("Can't set last id, redis error: {0}")]
-    CantSetLastId(redis::RedisError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -77,9 +75,18 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
                     .map_err(|e| EventStreamError::EventHandlerError(e))?;
                 last_id = id;
             }
-            con.set(format!("{}-{}", &reader_id, self.stream_name), &last_id)
-                .await
-                .map_err(EventStreamError::CantSetLastId)?;
+            loop {
+                match con
+                    .set::<_, _, ()>(format!("{}-{}", &reader_id, self.stream_name), &last_id)
+                    .await
+                {
+                    Ok(_) => break,
+                    Err(err) => {
+                        log::warn!("Failed to set last id for {reader_id}: {err:?}");
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                    }
+                }
+            }
         }
     }
 
