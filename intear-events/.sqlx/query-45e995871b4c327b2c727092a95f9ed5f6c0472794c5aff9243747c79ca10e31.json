@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT *\n            FROM nft_transfer\n            WHERE id > $1\n                AND ($2::TEXT IS NULL OR contract_id = $2)\n                AND ($3::TEXT IS NULL OR old_owner_id = $3)\n                AND ($4::TEXT IS NULL OR new_owner_id = $4)\n                AND (old_owner_id = $5 AND new_owner_id = $6)\n                    OR (old_owner_id = $6 AND new_owner_id = $5)\n            ORDER BY id ASC\n            LIMIT $7\n            ",
+  "query": "\n            SELECT *\n            FROM ft_transfer\n            WHERE true\n                AND ($1::TEXT IS NULL OR token_id = $1)\n                AND ($2::TEXT IS NULL OR old_owner_id = $2)\n                AND ($3::TEXT IS NULL OR new_owner_id = $3)\n                AND ($4::NUMERIC IS NULL OR amount = $4)\n                AND ((old_owner_id = $5 AND new_owner_id = $6)\n                    OR (old_owner_id = $6 AND new_owner_id = $5))\n                AND ($7::NUMERIC IS NULL OR amount >= $7)\n            ORDER BY id ASC\n            LIMIT $8\n            ",
   "describe": {
     "columns": [
       {
@@ -30,43 +30,39 @@
       },
       {
         "ordinal": 5,
-        "name": "contract_id",
+        "name": "token_id",
         "type_info": "Text"
       },
       {
         "ordinal": 6,
+        "name": "amount",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 7,
         "name": "old_owner_id",
         "type_info": "Text"
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "new_owner_id",
         "type_info": "Text"
       },
       {
-        "ordinal": 8,
-        "name": "token_ids",
-        "type_info": "TextArray"
-      },
-      {
         "ordinal": 9,
-        "name": "token_prices_near",
-        "type_info": "NumericArray"
-      },
-      {
-        "ordinal": 10,
         "name": "memo",
         "type_info": "Text"
       }
     ],
     "parameters": {
       "Left": [
-        "Int4",
         "Text",
         "Text",
         "Text",
+        "Numeric",
         "Text",
         "Text",
+        "Numeric",
         "Int8"
       ]
     },
@@ -80,9 +76,8 @@
       false,
       false,
       false,
-      false,
       true
     ]
   },
-  "hash": "ed1eee984d255e482c39d3140cf11487a6235e178fc15bfc5be10cb4a3e95a80"
+  "hash": "45e995871b4c327b2c727092a95f9ed5f6c0472794c5aff9243747c79ca10e31"
 }

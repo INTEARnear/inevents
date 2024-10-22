@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT *\n            FROM nft_transfer\n            WHERE id > $1\n                AND ($2::TEXT IS NULL OR contract_id = $2)\n                AND ($3::TEXT IS NULL OR old_owner_id = $3)\n                AND ($4::TEXT IS NULL OR new_owner_id = $4)\n                AND old_owner_id = $5 OR new_owner_id = $5\n            ORDER BY id ASC\n            LIMIT $6\n            ",
+  "query": "\n            SELECT *\n            FROM nft_transfer\n            WHERE true\n                AND ($1::TEXT IS NULL OR contract_id = $1)\n                AND ($2::TEXT IS NULL OR old_owner_id = $2)\n                AND ($3::TEXT IS NULL OR new_owner_id = $3)\n                AND ((old_owner_id = $4 AND new_owner_id = $5)\n                    OR (old_owner_id = $5 AND new_owner_id = $4))\n            ORDER BY id DESC\n            LIMIT $6\n            ",
   "describe": {
     "columns": [
       {
@@ -61,7 +61,7 @@
     ],
     "parameters": {
       "Left": [
-        "Int4",
+        "Text",
         "Text",
         "Text",
         "Text",
@@ -83,5 +83,5 @@
       true
     ]
   },
-  "hash": "cfb2bedf69880f5ebe9ed0e443130eff2357184986587a67aa7d9c2e860d0aa5"
+  "hash": "5f289c6b1912135cf5b664bc19f0271bf2fcc0435ecf3c39521cdeae7d5c0261"
 }

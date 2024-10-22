@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT *\n            FROM ft_transfer\n            WHERE true\n                AND ($1::TEXT IS NULL OR token_id = $1)\n                AND ($2::TEXT IS NULL OR old_owner_id = $2)\n                AND ($3::TEXT IS NULL OR new_owner_id = $3)\n                AND ($4::NUMERIC IS NULL OR amount = $4)\n                AND old_owner_id = $5 OR new_owner_id = $5\n                AND ($6::NUMERIC IS NULL OR amount >= $6)\n            ORDER BY id ASC\n            LIMIT $7\n            ",
+  "query": "\n            SELECT *\n            FROM ft_transfer\n            WHERE timestamp > $1\n                AND ($2::TEXT IS NULL OR token_id = $2)\n                AND ($3::TEXT IS NULL OR old_owner_id = $3)\n                AND ($4::TEXT IS NULL OR new_owner_id = $4)\n                AND ($5::NUMERIC IS NULL OR amount = $5)\n                AND ((old_owner_id = $6 AND new_owner_id = $7)\n                    OR (old_owner_id = $7 AND new_owner_id = $6))\n                AND ($8::NUMERIC IS NULL OR amount >= $8)\n            ORDER BY id ASC\n            LIMIT $9\n            ",
   "describe": {
     "columns": [
       {
@@ -56,10 +56,12 @@
     ],
     "parameters": {
       "Left": [
+        "Timestamptz",
         "Text",
         "Text",
         "Text",
         "Numeric",
+        "Text",
         "Text",
         "Numeric",
         "Int8"
@@ -78,5 +80,5 @@
       true
     ]
   },
-  "hash": "6fffcda41f982f4e6f45786a01c6180b7abcc6099d164fc3d05f61407c39f14c"
+  "hash": "dc972ed897132d71c6389bbca0671d16667f90e2aa8ecfe344b9b3152de91e21"
 }

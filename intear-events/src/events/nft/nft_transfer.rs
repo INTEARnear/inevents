@@ -155,9 +155,9 @@ impl DatabaseEventFilter for DbNftTransferFilter {
             "#,
             #involved_account_ids = match involved_account_ids.as_ref().map(|ids| ids.len()).unwrap_or_default() {
                 0 => "true",
-                1 => "old_owner_id = {first_involved_account_id} OR new_owner_id = {first_involved_account_id}",
-                2 => "(old_owner_id = {first_involved_account_id} AND new_owner_id = {second_involved_account_id})
-                    OR (old_owner_id = {second_involved_account_id} AND new_owner_id = {first_involved_account_id})",
+                1 => "(old_owner_id = {first_involved_account_id} OR new_owner_id = {first_involved_account_id})",
+                2 => "((old_owner_id = {first_involved_account_id} AND new_owner_id = {second_involved_account_id})
+                    OR (old_owner_id = {second_involved_account_id} AND new_owner_id = {first_involved_account_id}))",
                 3.. => "false",
             },
             #(time, order) = match &pagination.pagination_by {
