@@ -77,6 +77,16 @@
         "ordinal": 14,
         "name": "deposit_token_id",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "soft_cap",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 16,
+        "name": "hard_cap",
+        "type_info": "Numeric"
       }
     ],
     "parameters": {
@@ -102,7 +112,9 @@
       false,
       false,
       false,
-      false
+      false,
+      false,
+      true
     ]
   },
   "hash": "9b8b2d65bda969fb1a9482a33ab66353831190653aa62b1082f684817cd69fc5"

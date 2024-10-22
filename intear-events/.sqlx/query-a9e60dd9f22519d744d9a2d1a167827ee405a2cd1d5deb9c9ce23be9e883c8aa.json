@@ -1,0 +1,86 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT *\n            FROM nft_transfer\n            WHERE id < $1\n                AND ($2::TEXT IS NULL OR contract_id = $2)\n                AND ($3::TEXT IS NULL OR old_owner_id = $3)\n                AND ($4::TEXT IS NULL OR new_owner_id = $4)\n                AND false\n            ORDER BY id DESC\n            LIMIT $5\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "transaction_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "receipt_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "block_height",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "contract_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "old_owner_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "new_owner_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "token_ids",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 9,
+        "name": "token_prices_near",
+        "type_info": "NumericArray"
+      },
+      {
+        "ordinal": 10,
+        "name": "memo",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "a9e60dd9f22519d744d9a2d1a167827ee405a2cd1d5deb9c9ce23be9e883c8aa"
+}

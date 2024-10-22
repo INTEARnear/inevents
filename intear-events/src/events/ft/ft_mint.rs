@@ -60,10 +60,10 @@ pub struct DbFtMintFilter {
     pub token_id: Option<AccountId>,
     #[schemars(with = "Option<String>")]
     pub owner_id: Option<AccountId>,
-    #[serde(with = "dec_format")]
+    #[serde(with = "dec_format", default)]
     #[schemars(with = "Option<String>")]
     pub amount: Option<Balance>,
-    #[serde(with = "dec_format")]
+    #[serde(with = "dec_format", default)]
     #[schemars(with = "Option<String>")]
     pub min_amount: Option<Balance>,
 }

@@ -1,0 +1,61 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT *\n            FROM trade_swap_testnet\n            WHERE timestamp < $1\n                AND ($2::TEXT IS NULL OR trader = $2)\n                AND ($3::TEXT[] IS NULL OR balance_changes ?& $3)\n            ORDER BY id DESC\n            LIMIT greatest($4, 16::bigint) -- db gives better strategy for 16+ limit, so limiting it on server side\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "trader",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "block_height",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "transaction_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "receipt_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "balance_changes",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Text",
+        "TextArray",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a382e14b749daa3dd21f195fbd85a0d34b2614e6a8d657cc6ebb071f8de7cb0f"
+}

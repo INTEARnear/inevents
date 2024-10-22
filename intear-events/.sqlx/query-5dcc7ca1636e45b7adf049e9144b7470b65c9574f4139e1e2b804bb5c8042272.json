@@ -1,0 +1,67 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT *\n            FROM liquidity_pool\n            WHERE timestamp < $1\n                AND ($2::TEXT IS NULL OR provider_account_id = $2)\n                AND ($3::TEXT[] IS NULL OR tokens ?& $3)\n            ORDER BY id DESC\n            LIMIT greatest($4, 16::bigint) -- db gives better strategy for 16+ limit, so limiting it on server side\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "transaction_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "receipt_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "block_height",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "provider_account_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "tokens",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 7,
+        "name": "pool_id",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Text",
+        "TextArray",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "5dcc7ca1636e45b7adf049e9144b7470b65c9574f4139e1e2b804bb5c8042272"
+}
