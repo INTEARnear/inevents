@@ -186,9 +186,9 @@ impl DatabaseEventFilter for DbFtBurnFilter {
 pub struct RtFtBurnFilter {
     pub token_id: Option<AccountId>,
     pub owner_id: Option<AccountId>,
-    #[serde(with = "dec_format")]
+    #[serde(with = "dec_format", default)]
     pub amount: Option<Balance>,
-    #[serde(with = "dec_format")]
+    #[serde(with = "dec_format", default)]
     pub min_amount: Option<Balance>,
 }
 

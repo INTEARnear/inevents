@@ -215,9 +215,9 @@ pub struct RtFtTransferFilter {
     pub old_owner_id: Option<AccountId>,
     pub new_owner_id: Option<AccountId>,
     pub involved_account_ids: Option<Vec<AccountId>>,
-    #[serde(with = "dec_format")]
+    #[serde(with = "dec_format", default)]
     pub amount: Option<Balance>,
-    #[serde(with = "dec_format")]
+    #[serde(with = "dec_format", default)]
     pub min_amount: Option<Balance>,
 }
 
