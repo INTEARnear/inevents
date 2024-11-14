@@ -1,3 +1,4 @@
+use inevents::actix_web::http::StatusCode;
 #[cfg(feature = "impl")]
 use inevents::events::event::{EventId, PaginationBy};
 use std::collections::HashMap;
@@ -14,7 +15,8 @@ use sqlx::{Pool, Postgres};
 
 #[cfg(feature = "impl")]
 use inevents::events::event::{
-    DatabaseEventAdapter, DatabaseEventFilter, Event, PaginationParameters, RealtimeEventFilter,
+    CustomHttpEndpoint, DatabaseEventAdapter, DatabaseEventFilter, Event, PaginationParameters,
+    RealtimeEventFilter,
 };
 
 pub struct TradeSwapEvent;
@@ -33,6 +35,80 @@ impl Event for TradeSwapEvent {
     type EventData = TradeSwapEventData;
     type RealtimeEventFilter = RtTradeSwapilter;
     type DatabaseAdapter = DbTradeSwapAdapter;
+
+    #[cfg(feature = "impl")]
+    fn custom_http_endpoints(pool: Pool<Postgres>) -> Vec<Box<dyn CustomHttpEndpoint>> {
+        vec![Box::new(LastTradedMemeCookingTokensEndpoint { pool })]
+    }
+}
+
+#[cfg(feature = "impl")]
+pub struct LastTradedMemeCookingTokensEndpoint {
+    pool: Pool<Postgres>,
+}
+
+#[cfg(feature = "impl")]
+impl CustomHttpEndpoint for LastTradedMemeCookingTokensEndpoint {
+    fn name(&self) -> &'static str {
+        "last_traded_meme_cooking_tokens"
+    }
+
+    fn handle(
+        &self,
+        query: HashMap<String, String>,
+        testnet: bool,
+    ) -> tokio::task::JoinHandle<(StatusCode, serde_json::Value)> {
+        let pool = self.pool.clone();
+
+        #[derive(Debug, sqlx::FromRow, Serialize)]
+        struct Token {
+            token: Option<String>,
+            latest_timestamp: Option<chrono::DateTime<chrono::Utc>>,
+        }
+
+        tokio::spawn(async move {
+            let results = sqlx_conditional_queries::conditional_query_as!(
+                Token,
+                r#"
+                SELECT 
+                    token,
+                    MAX(timestamp) as latest_timestamp
+                FROM trade_swap{#testnet},
+                LATERAL
+                    jsonb_object_keys(balance_changes) as token
+                WHERE
+                    {#token_type}
+                GROUP BY token
+                ORDER BY latest_timestamp DESC
+                LIMIT 25;
+                "#,
+                #token_type = match query.get("token_type").map(|t| t.as_str()) {
+                    Some("meme-cooking") => "token LIKE '%.meme-cooking.near'",
+                    None | Some(_) => "true",
+                },
+                #testnet = match testnet {
+                    true => "_testnet",
+                    false => "",
+                },
+            )
+            .fetch_all(&pool)
+            .await
+            .map_err(|err| {
+                log::error!("Error querying last traded meme cooking tokens: {:?}", err);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    serde_json::json!({"error": "internal server error"}),
+                )
+            })
+            .unwrap_or_default();
+
+            (
+                StatusCode::OK,
+                serde_json::to_value(&results)
+                    .expect("Error serializing last traded meme cooking tokens response"),
+            )
+        })
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
