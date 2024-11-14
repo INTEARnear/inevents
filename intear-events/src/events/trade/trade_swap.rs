@@ -50,7 +50,7 @@ pub struct LastTradedMemeCookingTokensEndpoint {
 #[cfg(feature = "impl")]
 impl CustomHttpEndpoint for LastTradedMemeCookingTokensEndpoint {
     fn name(&self) -> &'static str {
-        "last_traded_meme_cooking_tokens"
+        "last_traded_tokens"
     }
 
     fn handle(
@@ -94,7 +94,7 @@ impl CustomHttpEndpoint for LastTradedMemeCookingTokensEndpoint {
             .fetch_all(&pool)
             .await
             .map_err(|err| {
-                log::error!("Error querying last traded meme cooking tokens: {:?}", err);
+                log::error!("Error querying last traded tokens: {:?}", err);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     serde_json::json!({"error": "internal server error"}),
@@ -105,7 +105,7 @@ impl CustomHttpEndpoint for LastTradedMemeCookingTokensEndpoint {
             (
                 StatusCode::OK,
                 serde_json::to_value(&results)
-                    .expect("Error serializing last traded meme cooking tokens response"),
+                    .expect("Error serializing last traded tokens response"),
             )
         })
     }
