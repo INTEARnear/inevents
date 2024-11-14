@@ -82,9 +82,10 @@ impl CustomHttpEndpoint for LastTradedMemeCookingTokensEndpoint {
                 ORDER BY latest_timestamp DESC
                 LIMIT 25;
                 "#,
-                #token_type = match query.get("token_type").map(|t| t.as_str()) {
-                    Some("meme-cooking") => "token LIKE '%.meme-cooking.near'",
-                    None | Some(_) => "true",
+                #token_type = match (query.get("token_type").map(|t| t.as_str()), testnet) {
+                    (Some("meme-cooking"), false) => "token LIKE '%.meme-cooking.near'",
+                    (Some("meme-cooking"), true) => "token LIKE '%.factory.v10.meme-cooking.testnet'",
+                    (None | Some(_), _) => "true",
                 },
                 #testnet = match testnet {
                     true => "_testnet",
