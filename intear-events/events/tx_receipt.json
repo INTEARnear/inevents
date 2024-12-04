@@ -1,0 +1,23 @@
+{
+    "id": "tx_receipt",
+    "description": "High-level transaction information",
+    "category": "Transactions",
+    "sql_insert": "INSERT INTO tx_receipts (timestamp, block_height, receipt_id, transaction_id, executor_id, success) SELECT to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0), (value->>'block_height')::bigint, value->>'receipt_id', value->>'transaction_id', value->>'executor_id', (value->>'success')::boolean FROM jsonb_array_elements($1);",
+    "endpoints": [
+        {
+            "route": "tx_receipt/newest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'block_height', block_height, 'receipt_id', receipt_id, 'transaction_id', transaction_id, 'executor_id', executor_id, 'success', success) FROM tx_receipts WHERE (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "tx_receipt/oldest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'block_height', block_height, 'receipt_id', receipt_id, 'transaction_id', transaction_id, 'executor_id', executor_id, 'success', success) FROM tx_receipts WHERE (($1->>'after_id')::bigint IS NULL OR id > ($1->>'after_id')::bigint) ORDER BY id ASC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "tx_receipt/by_executor",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'block_height', block_height, 'receipt_id', receipt_id, 'transaction_id', transaction_id, 'executor_id', executor_id, 'success', success) FROM tx_receipts WHERE executor_id = ($1->>'executor_id') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        }
+    ]
+} 

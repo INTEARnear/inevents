@@ -1,117 +1,51 @@
-use std::collections::HashMap;
-use std::future::Future;
+use std::{collections::HashMap, sync::Arc};
 
 use actix_web::http::StatusCode;
-use near_indexer_primitives::near_primitives::serialize::dec_format;
-use near_indexer_primitives::types::BlockHeight;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgQueryResult, Pool, Postgres};
+use async_trait::async_trait;
+use serde::Deserialize;
+use sqlx::PgPool;
 use utoipa::openapi::PathItem;
 
-pub trait Event {
-    const ID: &'static str;
-    const DESCRIPTION: Option<&'static str> = None;
-    const CATEGORY: &'static str = "Unspecified";
-    const EXCLUDE_FROM_DATABASE: bool = false;
-    const SUPPORTS_TESTNET: bool = false;
-
-    type EventData: Serialize + for<'de> Deserialize<'de> + JsonSchema;
-    type RealtimeEventFilter: RealtimeEventFilter<Event = Self>;
-    type DatabaseAdapter: DatabaseEventAdapter<Event = Self>;
-
-    fn custom_http_endpoints(_pool: Pool<Postgres>) -> Vec<Box<dyn CustomHttpEndpoint>> {
-        vec![]
-    }
+#[derive(Clone, Deserialize)]
+pub struct Event {
+    pub id: String,
+    pub description: Option<String>,
+    pub category: String,
+    pub sql_insert: String,
+    pub endpoints: Vec<QueryEndpoint>,
 }
 
-pub trait CustomHttpEndpoint {
-    fn name(&self) -> &'static str;
+#[derive(Clone)]
+pub enum Query {
+    Sql(String),
+    Custom(Arc<dyn HttpEndpoint>),
+}
 
-    /// Return none if not supported
-    fn openapi(&self) -> Option<PathItem> {
-        None
-    }
-
-    fn handle(
+#[async_trait]
+pub trait HttpEndpoint: Send + Sync {
+    async fn handle(
         &self,
+        pool: PgPool,
         query: HashMap<String, String>,
-        testnet: bool,
-    ) -> tokio::task::JoinHandle<(StatusCode, serde_json::Value)>;
+    ) -> (StatusCode, serde_json::Value);
 }
 
-pub trait RealtimeEventFilter: for<'de> Deserialize<'de> {
-    type Event: Event;
-
-    fn matches(&self, event: &<Self::Event as Event>::EventData) -> bool;
+fn deserialize_query<'de, D>(deserializer: D) -> Result<Query, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let query = String::deserialize(deserializer)?;
+    Ok(Query::Sql(query))
 }
 
-pub trait DatabaseEventAdapter {
-    type Event: Event;
-    type Filter: DatabaseEventFilter<Event = Self::Event> + for<'de> Deserialize<'de> + JsonSchema;
-
-    fn insert(
-        event: &<Self::Event as Event>::EventData,
-        pool: &Pool<Postgres>,
-        testnet: bool,
-    ) -> impl Future<Output = Result<PgQueryResult, sqlx::Error>>;
+#[derive(Clone, Deserialize)]
+pub struct QueryEndpoint {
+    /// The name of the endpoint, it will be used in the URL.
+    pub route: String,
+    /// The OpenAPI schema of the endpoint.
+    pub openapi: Option<PathItem>,
+    /// The SQL query to query the event from the database.
+    /// Accepts $1 as the query parameters in the endpoint URL.
+    #[serde(deserialize_with = "deserialize_query")]
+    pub query: Query,
 }
-
-pub trait DatabaseEventFilter {
-    type Event: Event;
-
-    fn query_paginated(
-        &self,
-        pagination: &PaginationParameters,
-        pool: &Pool<Postgres>,
-        testnet: bool,
-    ) -> impl Future<Output = Result<Vec<(EventId, <Self::Event as Event>::EventData)>, sqlx::Error>>;
-}
-
-pub const MAX_EVENTS_PER_REQUEST: u64 = 200;
-
-#[derive(Debug, Deserialize)]
-pub struct PaginationParameters {
-    pub limit: u64,
-    #[serde(flatten)]
-    pub pagination_by: PaginationBy,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-#[serde(tag = "pagination_by")]
-pub enum PaginationBy {
-    Oldest,
-    Newest,
-    BeforeBlockHeight {
-        #[serde(deserialize_with = "dec_format::deserialize")]
-        block_height: BlockHeight,
-    },
-    AfterBlockHeight {
-        #[serde(deserialize_with = "dec_format::deserialize")]
-        block_height: BlockHeight,
-    },
-    BeforeTimestamp {
-        #[serde(deserialize_with = "dec_format::deserialize")]
-        timestamp_nanosec: u128,
-    },
-    AfterTimestamp {
-        #[serde(deserialize_with = "dec_format::deserialize")]
-        timestamp_nanosec: u128,
-    },
-    BeforeId {
-        #[serde(deserialize_with = "dec_format::deserialize")]
-        id: EventId,
-    },
-    AfterId {
-        #[serde(deserialize_with = "dec_format::deserialize")]
-        id: EventId,
-    },
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub enum Order {
-    Ascending,
-    Descending,
-}
-
-pub type EventId = u64;

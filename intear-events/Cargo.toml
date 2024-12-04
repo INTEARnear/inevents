@@ -5,7 +5,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-inevents = { path = "../", optional = true }
+inevents = { path = "../" }
 dotenvy = "0.15.7"
 log = "0.4.21"
 simple_logger = "5.0.0"
@@ -28,10 +28,4 @@ sqlx = { version = "0.8.1", features = [
 semver = "1.0.23"
 num-traits = "0.2.14"
 tokio = { version = "1.40.0", features = ["rt-multi-thread", "macros"] }
-sqlx-conditional-queries = { version = "0.2.1", features = ["postgres"] }
-
-[features]
-impl = ["inevents"]
-default = [
-    "impl",
-] # If using this as a library, you may want to disable sqlx queries because of compile time checks
+async-trait = "0.1.74"

@@ -1,0 +1,23 @@
+{
+    "id": "trade_pool_change",
+    "description": "Fired when a DEX pool changes.",
+    "category": "Trade",
+    "sql_insert": "INSERT INTO trade_pool_change (timestamp, receipt_id, block_height, pool_id, pool) SELECT to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0), value->>'receipt_id', (value->>'block_height')::bigint, value->>'pool_id', (value->>'pool')::jsonb FROM jsonb_array_elements($1);",
+    "endpoints": [
+        {
+            "route": "trade_pool_change/newest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'receipt_id', receipt_id, 'block_height', block_height, 'pool_id', pool_id, 'pool', pool) FROM trade_pool_change WHERE (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "trade_pool_change/oldest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'receipt_id', receipt_id, 'block_height', block_height, 'pool_id', pool_id, 'pool', pool) FROM trade_pool_change WHERE (($1->>'after_id')::bigint IS NULL OR id > ($1->>'after_id')::bigint) ORDER BY id ASC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "trade_pool_change/by_pool",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'receipt_id', receipt_id, 'block_height', block_height, 'pool_id', pool_id, 'pool', pool) FROM trade_pool_change WHERE pool_id = ($1->>'pool_id') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        }
+    ]
+} 

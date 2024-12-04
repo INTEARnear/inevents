@@ -1,0 +1,23 @@
+{
+    "id": "block_info",
+    "description": "Information about blocks",
+    "category": "TPS",
+    "sql_insert": "INSERT INTO block_info (timestamp, block_height, block_hash, block_producer, transaction_count, receipt_count) SELECT to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0), (value->>'block_height')::bigint, value->>'block_hash', value->>'block_producer', (value->>'transaction_count')::bigint, (value->>'receipt_count')::bigint FROM jsonb_array_elements($1);",
+    "endpoints": [
+        {
+            "route": "block_info/newest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'block_height', block_height, 'block_hash', block_hash, 'block_producer', block_producer, 'transaction_count', transaction_count, 'receipt_count', receipt_count) FROM block_info WHERE (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "block_info/oldest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'block_height', block_height, 'block_hash', block_hash, 'block_producer', block_producer, 'transaction_count', transaction_count, 'receipt_count', receipt_count) FROM block_info WHERE (($1->>'after_id')::bigint IS NULL OR id > ($1->>'after_id')::bigint) ORDER BY id ASC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "block_info/by_block_height",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'block_height', block_height, 'block_hash', block_hash, 'block_producer', block_producer, 'transaction_count', transaction_count, 'receipt_count', receipt_count) FROM block_info WHERE block_height = ($1->>'block_height')::bigint AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        }
+    ]
+}

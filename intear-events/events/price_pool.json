@@ -1,0 +1,23 @@
+{
+    "id": "price_pool",
+    "description": "Fired for every trade_pool_change event, with token prices calculated, in the same format for all pools.",
+    "category": "Price",
+    "sql_insert": "INSERT INTO price_pool (timestamp, transaction_id, receipt_id, block_height, pool_id, token_prices) SELECT to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0), value->>'transaction_id', value->>'receipt_id', (value->>'block_height')::bigint, value->>'pool_id', (value->>'token_prices')::jsonb FROM jsonb_array_elements($1);",
+    "endpoints": [
+        {
+            "route": "price_pool/newest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'pool_id', pool_id, 'token_prices', token_prices) FROM price_pool WHERE (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "price_pool/oldest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'pool_id', pool_id, 'token_prices', token_prices) FROM price_pool WHERE (($1->>'after_id')::bigint IS NULL OR id > ($1->>'after_id')::bigint) ORDER BY id ASC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "price_pool/by_pool",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'pool_id', pool_id, 'token_prices', token_prices) FROM price_pool WHERE pool_id = ($1->>'pool_id') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        }
+    ]
+} 

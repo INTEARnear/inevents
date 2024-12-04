@@ -1,0 +1,38 @@
+{
+    "id": "ft_burn",
+    "description": "Fired when FTs are burned",
+    "category": "FT",
+    "sql_insert": "INSERT INTO ft_burn (timestamp, transaction_id, receipt_id, block_height, token_id, owner_id, amount, memo) SELECT to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0), value->>'transaction_id', value->>'receipt_id', (value->>'block_height')::bigint, value->>'token_id', value->>'owner_id', (value->>'amount')::numeric, value->>'memo' FROM jsonb_array_elements($1);",
+    "endpoints": [
+        {
+            "route": "ft_burn/newest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'owner_id', owner_id, 'amount', amount, 'memo', memo) FROM ft_burn WHERE (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "ft_burn/oldest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'owner_id', owner_id, 'amount', amount, 'memo', memo) FROM ft_burn WHERE (($1->>'after_id')::bigint IS NULL OR id > ($1->>'after_id')::bigint) ORDER BY id ASC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "ft_burn/by_owner",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'owner_id', owner_id, 'amount', amount, 'memo', memo) FROM ft_burn WHERE owner_id = ($1->>'account_id') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "ft_burn/token_newest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'owner_id', owner_id, 'amount', amount, 'memo', memo) FROM ft_burn WHERE token_id = ($1->>'token') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "ft_burn/token_oldest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'owner_id', owner_id, 'amount', amount, 'memo', memo) FROM ft_burn WHERE token_id = ($1->>'token') AND (($1->>'after_id')::bigint IS NULL OR id > ($1->>'after_id')::bigint) ORDER BY id ASC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "ft_burn/token_by_owner",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'owner_id', owner_id, 'amount', amount, 'memo', memo) FROM ft_burn WHERE owner_id = ($1->>'account_id') AND token_id = ($1->>'token') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        }
+    ]
+}

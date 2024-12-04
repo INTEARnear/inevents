@@ -1,0 +1,18 @@
+{
+    "id": "newtoken_memecooking",
+    "description": "Fired when a new MemeCooking meme is created",
+    "category": "New Tokens",
+    "sql_insert": "INSERT INTO new_memecooking_meme (timestamp, transaction_id, receipt_id, block_height, meme_id, owner, end_timestamp_ms, name, symbol, decimals, total_supply, reference, reference_hash, deposit_token_id, soft_cap, hard_cap) SELECT to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0), value->>'transaction_id', value->>'receipt_id', (value->>'block_height')::bigint, (value->>'meme_id')::bigint, value->>'owner', (value->>'end_timestamp_ms')::bigint, value->>'name', value->>'symbol', (value->>'decimals')::int, (value->>'total_supply')::numeric, value->>'reference', value->>'reference_hash', value->>'deposit_token_id', (value->>'soft_cap')::numeric, (value->>'hard_cap')::numeric FROM jsonb_array_elements($1);",
+    "endpoints": [
+        {
+            "route": "meme_cooking_meme/newest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'meme_id', meme_id, 'owner', owner, 'end_timestamp_ms', end_timestamp_ms, 'name', name, 'symbol', symbol, 'decimals', decimals, 'total_supply', total_supply, 'reference', reference, 'reference_hash', reference_hash, 'deposit_token_id', deposit_token_id, 'soft_cap', soft_cap, 'hard_cap', hard_cap) FROM new_memecooking_meme WHERE (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "meme_cooking_meme/oldest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'meme_id', meme_id, 'owner', owner, 'end_timestamp_ms', end_timestamp_ms, 'name', name, 'symbol', symbol, 'decimals', decimals, 'total_supply', total_supply, 'reference', reference, 'reference_hash', reference_hash, 'deposit_token_id', deposit_token_id, 'soft_cap', soft_cap, 'hard_cap', hard_cap) FROM new_memecooking_meme WHERE (($1->>'after_id')::bigint IS NULL OR id > ($1->>'after_id')::bigint) ORDER BY id ASC LIMIT 50;",
+            "openapi": null
+        }
+    ]
+} 

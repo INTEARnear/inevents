@@ -4,6 +4,9 @@ version = "1.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
+[workspace]
+members = [".", "redis", "intear-events"]
+
 [dependencies]
 log = "0.4.21"
 actix-web = { version = "4.5.1", features = ["rustls-0_22"] }
@@ -30,3 +33,4 @@ utoipa-swagger-ui = { version = "7.1.0", features = ["actix-web"] }
 schemars = "0.8.21"
 futures = "0.3.30"
 tokio-util = "0.7.11"
+thiserror = "1.0.49"

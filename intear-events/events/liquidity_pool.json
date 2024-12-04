@@ -1,0 +1,28 @@
+{
+    "id": "liquidity_pool",
+    "description": "Fired when someone adds or removes LP.",
+    "category": "Trade",
+    "sql_insert": "INSERT INTO liquidity_pool (timestamp, transaction_id, receipt_id, block_height, provider_account_id, pool_id, tokens) SELECT to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0), value->>'transaction_id', value->>'receipt_id', (value->>'block_height')::bigint, value->>'provider_account_id', value->>'pool', (value->>'tokens')::jsonb FROM jsonb_array_elements($1);",
+    "endpoints": [
+        {
+            "route": "liquidity_pool/newest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'provider_account_id', provider_account_id, 'pool_id', pool_id, 'tokens', tokens) FROM liquidity_pool WHERE (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "liquidity_pool/oldest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'provider_account_id', provider_account_id, 'pool_id', pool_id, 'tokens', tokens) FROM liquidity_pool WHERE (($1->>'after_id')::bigint IS NULL OR id > ($1->>'after_id')::bigint) ORDER BY id ASC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "liquidity_pool/by_provider",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'provider_account_id', provider_account_id, 'pool_id', pool_id, 'tokens', tokens) FROM liquidity_pool WHERE provider_account_id = ($1->>'provider_account_id') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "liquidity_pool/by_token",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'provider_account_id', provider_account_id, 'pool_id', pool_id, 'tokens', tokens) FROM liquidity_pool WHERE tokens ? ($1->>'token_id') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        }
+    ]
+} 

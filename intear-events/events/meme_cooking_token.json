@@ -1,0 +1,18 @@
+{
+    "id": "newtoken_memecooking_token",
+    "description": "Fired when a new MemeCooking token is created",
+    "category": "New Tokens",
+    "sql_insert": "INSERT INTO memecooking_create_token (timestamp, transaction_id, receipt_id, block_height, meme_id, token_id, total_supply, pool_id) SELECT to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0), value->>'transaction_id', value->>'receipt_id', (value->>'block_height')::bigint, (value->>'meme_id')::bigint, value->>'token_id', (value->>'total_supply')::numeric, (value->>'pool_id')::bigint FROM jsonb_array_elements($1);",
+    "endpoints": [
+        {
+            "route": "meme_cooking_token/newest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'meme_id', meme_id, 'token_id', token_id, 'total_supply', total_supply, 'pool_id', pool_id) FROM memecooking_create_token WHERE (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "meme_cooking_token/oldest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'meme_id', meme_id, 'token_id', token_id, 'total_supply', total_supply, 'pool_id', pool_id) FROM memecooking_create_token WHERE (($1->>'after_id')::bigint IS NULL OR id > ($1->>'after_id')::bigint) ORDER BY id ASC LIMIT 50;",
+            "openapi": null
+        }
+    ]
+} 

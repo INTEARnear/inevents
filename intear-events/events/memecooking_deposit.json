@@ -1,0 +1,28 @@
+{
+    "id": "memecooking_deposit",
+    "description": "Fired when a deposit is made in the MemeCooking protocol.",
+    "category": "Trade",
+    "sql_insert": "INSERT INTO memecooking_deposit (timestamp, transaction_id, receipt_id, block_height, trader, meme_id, amount, protocol_fee, referrer, referrer_fee) SELECT to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0), value->>'transaction_id', value->>'receipt_id', (value->>'block_height')::bigint, value->>'trader', (value->>'meme_id')::bigint, (value->>'amount')::numeric, (value->>'protocol_fee')::numeric, value->>'referrer', (value->>'referrer_fee')::numeric FROM jsonb_array_elements($1);",
+    "endpoints": [
+        {
+            "route": "memecooking_deposit/newest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'trader', trader, 'meme_id', meme_id, 'amount', amount, 'protocol_fee', protocol_fee, 'referrer', referrer, 'referrer_fee', referrer_fee) FROM memecooking_deposit WHERE (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "memecooking_deposit/oldest",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'trader', trader, 'meme_id', meme_id, 'amount', amount, 'protocol_fee', protocol_fee, 'referrer', referrer, 'referrer_fee', referrer_fee) FROM memecooking_deposit WHERE (($1->>'after_id')::bigint IS NULL OR id > ($1->>'after_id')::bigint) ORDER BY id ASC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "memecooking_deposit/by_trader",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'trader', trader, 'meme_id', meme_id, 'amount', amount, 'protocol_fee', protocol_fee, 'referrer', referrer, 'referrer_fee', referrer_fee) FROM memecooking_deposit WHERE trader = ($1->>'trader') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        },
+        {
+            "route": "memecooking_deposit/by_meme_id",
+            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'trader', trader, 'meme_id', meme_id, 'amount', amount, 'protocol_fee', protocol_fee, 'referrer', referrer, 'referrer_fee', referrer_fee) FROM memecooking_deposit WHERE meme_id = ($1->>'meme_id')::bigint AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
+            "openapi": null
+        }
+    ]
+} 
