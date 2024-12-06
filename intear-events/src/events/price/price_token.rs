@@ -1,12 +1,13 @@
 use std::{collections::HashMap, str::FromStr};
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use inevents::{actix_web::http::StatusCode, events::event::HttpEndpoint};
 use inindexer::near_indexer_primitives::types::AccountId;
 use inindexer::near_utils::dec_format;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use sqlx::{types::BigDecimal, PgPool};
+use sqlx::{prelude::FromRow, types::BigDecimal, PgPool};
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PriceTokenEvent {
@@ -136,14 +137,22 @@ impl HttpEndpoint for OhlcEndpoint {
             );
         };
 
+        #[derive(Debug, FromRow)]
+        struct OhlcBar {
+            time: DateTime<Utc>,
+            #[allow(dead_code)] // replaced with previous bucket's close
+            open: BigDecimal,
+            high: BigDecimal,
+            low: BigDecimal,
+            close: BigDecimal,
+        }
+
         macro_rules! query_materialized_view {
             ($q: literal) => {
-                sqlx::query!(
-                    $q,
-                    token.to_string(),
-                    count_back as i64 + 1,
-                    to,
-                )
+                sqlx::query_as::<_, OhlcBar>($q)
+                .bind(token.to_string())
+                .bind(count_back as i64 + 1)
+                .bind(to)
                 .fetch_all(&pool)
                 .await
                 .map(|records| {
@@ -152,18 +161,18 @@ impl HttpEndpoint for OhlcEndpoint {
                     let Some(first_bar) = records.next() else {
                         return bars;
                     };
-                    let mut prev_close = first_bar.close.unwrap_or_default();
+                    let mut prev_close = first_bar.close;
                     for record in records {
-                        let high = record.high.unwrap_or_default().max(prev_close.clone());
-                        let low = record.low.unwrap_or_default().min(prev_close.clone());
+                        let high = record.high.max(prev_close.clone());
+                        let low = record.low.min(prev_close.clone());
                         bars.push(serde_json::json!({
-                            "time": record.bucket.unwrap_or_default().timestamp_millis(),
+                            "time": record.time.timestamp_millis(),
                             "open": prev_close.with_prec(42).to_string(),
                             "high": high.with_prec(42).to_string(),
                             "low": low.with_prec(42).to_string(),
-                            "close": record.close.clone().unwrap_or_default().with_prec(42).to_string(),
+                            "close": record.close.clone().with_prec(42).to_string(),
                         }));
-                        prev_close = record.close.unwrap_or_default();
+                        prev_close = record.close;
                     }
                     bars
                 })
