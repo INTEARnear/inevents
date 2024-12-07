@@ -6,7 +6,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
-pub struct AuroraTransaction {
+pub struct AuroraTransactionEvent {
     pub block_height: BlockHeight,
     #[serde(with = "dec_format")]
     #[schemars(with = "String")]
@@ -37,6 +37,6 @@ pub enum TransactionStatus {
     CallTooDeep,
 }
 
-impl AuroraTransaction {
+impl AuroraTransactionEvent {
     pub const ID: &'static str = "aurora_transaction";
 }
