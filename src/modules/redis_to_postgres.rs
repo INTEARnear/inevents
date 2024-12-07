@@ -23,44 +23,51 @@ impl EventModule for RedisToPostgres {
         let mut tasks = Vec::new();
         let cancellation_token = CancellationToken::new();
         for event in events {
-            let pg_pool = pg_pool.clone();
-            let cancellation_token_cloned = cancellation_token.clone();
-            tasks.push(tokio::spawn(async move {
-                let mut stream = RedisEventStream::new(
-                    create_connection(
-                        &std::env::var("REDIS_URL").expect("REDIS_URL enviroment variable not set"),
-                    )
-                    .await,
-                    event.id.clone(),
-                );
-                while let Err(err) = stream
-                    .start_reading_events(
-                        "redis_to_postgres",
-                        |value: serde_json::Value| {
-                            let sql_insert = event.sql_insert.clone();
-                            let pg_pool = pg_pool.clone();
-                            async move {
-                                match sqlx::query(&sql_insert)
-                                    .bind(serde_json::to_value(vec![value]).unwrap()) // TODO also do batching in redis
-                                    .execute(&pg_pool)
-                                    .await
-                                {
-                                    Ok(_) => Ok(()),
-                                    Err(err) => {
-                                        log::error!("Error inserting event into database: {err:?}");
-                                        Err(anyhow::anyhow!("Failed to insert event"))
+            if let Some(sql_insert) = event.sql_insert {
+                let pg_pool = pg_pool.clone();
+                let cancellation_token_cloned = cancellation_token.clone();
+                tasks.push(tokio::spawn(async move {
+                    let mut stream = RedisEventStream::new(
+                        create_connection(
+                            &std::env::var("REDIS_URL")
+                                .expect("REDIS_URL enviroment variable not set"),
+                        )
+                        .await,
+                        event.id.clone(),
+                    );
+                    while let Err(err) = stream
+                        .start_reading_events(
+                            "redis_to_postgres",
+                            |value: serde_json::Value| {
+                                let pg_pool = pg_pool.clone();
+                                let sql_insert = sql_insert.clone();
+                                async move {
+                                    match sqlx::query(&sql_insert)
+                                        .bind(serde_json::to_value(vec![value]).unwrap())
+                                        .execute(&pg_pool)
+                                        .await
+                                    {
+                                        Ok(_) => Ok(()),
+                                        Err(err) => {
+                                            log::error!(
+                                                "Error inserting event into database: {err:?}"
+                                            );
+                                            Err(anyhow::anyhow!("Failed to insert event"))
+                                        }
                                     }
                                 }
-                            }
-                        },
-                        || cancellation_token_cloned.is_cancelled(),
-                    )
-                    .await
-                {
-                    log::warn!("Error reading events from Redis: {err:?}\nRetrying in 10 seconds");
-                    tokio::time::sleep(Duration::from_secs(10)).await;
-                }
-            }));
+                            },
+                            || cancellation_token_cloned.is_cancelled(),
+                        )
+                        .await
+                    {
+                        log::warn!(
+                            "Error reading events from Redis: {err:?}\nRetrying in 10 seconds"
+                        );
+                        tokio::time::sleep(Duration::from_secs(10)).await;
+                    }
+                }));
+            }
         }
         let task = tokio::spawn(futures::future::join_all(tasks));
         tokio::signal::ctrl_c()
