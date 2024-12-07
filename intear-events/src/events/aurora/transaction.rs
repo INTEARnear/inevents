@@ -1,4 +1,4 @@
-use aurora_engine_types::types::{Address, WeiU256};
+use aurora_engine_types::types::{Address, Wei};
 use inindexer::near_indexer_primitives::types::BlockHeight;
 use inindexer::near_indexer_primitives::CryptoHash;
 use inindexer::near_utils::dec_format;
@@ -16,13 +16,14 @@ pub struct AuroraTransactionEvent {
     #[schemars(with = "String")]
     pub receipt_id: CryptoHash,
 
-    pub aurora_chain_id: String,
+    pub chain_id: Option<u64>,
     pub aurora_tx_hash: String,
     #[schemars(with = "String")]
     pub from: Address,
     #[schemars(with = "String")]
     pub to: Option<Address>,
-    pub value: WeiU256,
+    #[schemars(with = "String")]
+    pub value: Wei,
     pub input: Vec<u8>,
     pub status: TransactionStatus,
 }
