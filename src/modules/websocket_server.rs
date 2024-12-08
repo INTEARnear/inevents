@@ -258,8 +258,17 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for EventWebSocket {
             }
             Ok(ws::Message::Text(text)) => {
                 let text = text.to_string();
-                if let Ok(filter) = serde_json::from_str::<Operator>(&text) {
-                    self.filter = Some(Filter::new(".", filter));
+                match serde_json::from_str::<Operator>(&text) {
+                    Ok(filter) => {
+                        self.filter = Some(Filter::new(".", filter));
+                    }
+                    Err(err) => {
+                        ctx.text(format!("Invalid filter: {err}"));
+                        ctx.close(Some(CloseReason {
+                            code: ws::CloseCode::Invalid,
+                            description: Some("Invalid filter".to_string()),
+                        }));
+                    }
                 }
             }
             _ => ctx.stop(),
