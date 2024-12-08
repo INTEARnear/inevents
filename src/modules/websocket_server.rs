@@ -309,8 +309,7 @@ impl Handler<Arc<UntypedEvents>> for EventWebSocket {
         if s == "[" {
             return;
         }
-        s += "]";
-        ctx.text(s);
+        ctx.text(s.trim_end_matches(',').to_owned() + "]");
     }
 }
 
