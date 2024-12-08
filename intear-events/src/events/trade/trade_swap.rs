@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
-pub struct TradeSwap {
+pub struct TradeSwapEvent {
     #[serde(with = "stringified_map")]
     #[schemars(with = "HashMap<String, String>")]
     pub balance_changes: HashMap<AccountId, i128>,
@@ -23,7 +23,7 @@ pub struct TradeSwap {
     pub block_timestamp_nanosec: u128,
 }
 
-impl TradeSwap {
+impl TradeSwapEvent {
     pub const ID: &'static str = "trade_swap";
 }
 

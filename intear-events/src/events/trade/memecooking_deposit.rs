@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
-pub struct MemeCookingDeposit {
+pub struct MemeCookingDepositEvent {
     pub meme_id: u64,
     #[schemars(with = "String")]
     pub trader: AccountId,
@@ -30,6 +30,6 @@ pub struct MemeCookingDeposit {
     pub block_timestamp_nanosec: u128,
 }
 
-impl MemeCookingDeposit {
+impl MemeCookingDepositEvent {
     pub const ID: &'static str = "memecooking_deposit";
 }
