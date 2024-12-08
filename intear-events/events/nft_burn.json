@@ -2,7 +2,7 @@
     "id": "nft_burn",
     "description": "Fired when NFTs are burned",
     "category": "NFT",
-    "sql_insert": "INSERT INTO nft_burn (timestamp, transaction_id, receipt_id, block_height, owner_id, token_ids, memo) SELECT to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0), value->>'transaction_id', value->>'receipt_id', (value->>'block_height')::bigint, value->>'owner_id', (value->>'token_ids')::jsonb, value->>'memo' FROM jsonb_array_elements($1);",
+    "sql_insert": "INSERT INTO nft_burn (timestamp, transaction_id, receipt_id, block_height, owner_id, token_ids, memo) SELECT to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0), value->>'transaction_id', value->>'receipt_id', (value->>'block_height')::bigint, value->>'owner_id', (value->>'token_ids')::text[], value->>'memo' FROM jsonb_array_elements($1);",
     "endpoints": [
         {
             "route": "nft_burn/newest",
