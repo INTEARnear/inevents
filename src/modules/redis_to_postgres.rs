@@ -41,6 +41,7 @@ impl EventModule for RedisToPostgres {
                             |value: serde_json::Value| {
                                 let pg_pool = pg_pool.clone();
                                 let sql_insert = sql_insert.clone();
+                                let event_id = event.id.clone();
                                 async move {
                                     match sqlx::query(&sql_insert)
                                         .bind(serde_json::to_value(vec![value]).unwrap())
@@ -50,7 +51,7 @@ impl EventModule for RedisToPostgres {
                                         Ok(_) => Ok(()),
                                         Err(err) => {
                                             log::error!(
-                                                "Error inserting event into database: {err:?}"
+                                                "Error inserting {event_id} event into database: {err:?}",
                                             );
                                             Err(anyhow::anyhow!("Failed to insert event"))
                                         }

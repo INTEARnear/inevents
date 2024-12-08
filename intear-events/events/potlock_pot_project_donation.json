@@ -2,27 +2,6 @@
     "id": "potlock_pot_project_donation",
     "description": "Fired when a pot project donation is made in the Potlock protocol",
     "category": "Potlock",
-    "sql_insert": "INSERT INTO potlock_pot_project_donation (timestamp, transaction_id, receipt_id, block_height, donation_id, project_id, pot_id, amount, memo, referrer_id) SELECT to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0), value->>'transaction_id', value->>'receipt_id', (value->>'block_height')::bigint, (value->>'donation_id')::bigint, value->>'project_id', value->>'pot_id', (value->>'amount')::numeric, value->>'memo', value->>'referrer_id' FROM jsonb_array_elements($1);",
-    "endpoints": [
-        {
-            "route": "potlock_pot_project_donation/newest",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'donation_id', donation_id, 'project_id', project_id, 'pot_id', pot_id, 'amount', amount, 'memo', memo, 'referrer_id', referrer_id) FROM potlock_pot_project_donation WHERE (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "potlock_pot_project_donation/oldest",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'donation_id', donation_id, 'project_id', project_id, 'pot_id', pot_id, 'amount', amount, 'memo', memo, 'referrer_id', referrer_id) FROM potlock_pot_project_donation WHERE (($1->>'after_id')::bigint IS NULL OR id > ($1->>'after_id')::bigint) ORDER BY id ASC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "potlock_pot_project_donation/by_project",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'donation_id', donation_id, 'project_id', project_id, 'pot_id', pot_id, 'amount', amount, 'memo', memo, 'referrer_id', referrer_id) FROM potlock_pot_project_donation WHERE project_id = ($1->>'project_id') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "potlock_pot_project_donation/by_referrer",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'donation_id', donation_id, 'project_id', project_id, 'pot_id', pot_id, 'amount', amount, 'memo', memo, 'referrer_id', referrer_id) FROM potlock_pot_project_donation WHERE referrer_id = ($1->>'referrer_id') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        }
-    ]
+    "sql_insert": null,
+    "endpoints": []
 } 

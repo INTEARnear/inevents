@@ -2,27 +2,6 @@
     "id": "trade_swap",
     "description": "Fired when someone exchanges tokens.",
     "category": "Trade",
-    "sql_insert": "INSERT INTO trade_swap (timestamp, transaction_id, receipt_id, block_height, trader, balance_changes) SELECT to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0), value->>'transaction_id', value->>'receipt_id', (value->>'block_height')::bigint, value->>'trader', (value->>'balance_changes')::jsonb FROM jsonb_array_elements($1);",
-    "endpoints": [
-        {
-            "route": "trade_swap/newest",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'trader', trader, 'balance_changes', balance_changes) FROM trade_swap WHERE (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "trade_swap/oldest",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'trader', trader, 'balance_changes', balance_changes) FROM trade_swap WHERE (($1->>'after_id')::bigint IS NULL OR id > ($1->>'after_id')::bigint) ORDER BY id ASC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "trade_swap/by_trader",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'trader', trader, 'balance_changes', balance_changes) FROM trade_swap WHERE trader = ($1->>'trader') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "trade_swap/by_token",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'trader', trader, 'balance_changes', balance_changes) FROM trade_swap WHERE balance_changes ? ($1->>'token_id') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        }
-    ]
+    "sql_insert": null,
+    "endpoints": []
 } 

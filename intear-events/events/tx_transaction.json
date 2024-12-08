@@ -2,27 +2,6 @@
     "id": "tx_transaction",
     "description": "High-level transaction information",
     "category": "Transactions",
-    "sql_insert": "INSERT INTO tx_transactions (timestamp, block_height, signer_id, public_key, nonce, receiver_id, transaction_id, priority_fee, signature) SELECT to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0), (value->>'block_height')::bigint, value->>'signer_id', value->>'public_key', (value->>'nonce')::bigint, value->>'receiver_id', value->>'transaction_id', (value->>'priority_fee')::bigint, value->>'signature' FROM jsonb_array_elements($1);",
-    "endpoints": [
-        {
-            "route": "tx_transaction/newest",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'block_height', block_height, 'signer_id', signer_id, 'public_key', public_key, 'nonce', nonce, 'receiver_id', receiver_id, 'transaction_id', transaction_id, 'priority_fee', priority_fee, 'signature', signature) FROM tx_transactions WHERE (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "tx_transaction/oldest",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'block_height', block_height, 'signer_id', signer_id, 'public_key', public_key, 'nonce', nonce, 'receiver_id', receiver_id, 'transaction_id', transaction_id, 'priority_fee', priority_fee, 'signature', signature) FROM tx_transactions WHERE (($1->>'after_id')::bigint IS NULL OR id > ($1->>'after_id')::bigint) ORDER BY id ASC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "tx_transaction/by_signer",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'block_height', block_height, 'signer_id', signer_id, 'public_key', public_key, 'nonce', nonce, 'receiver_id', receiver_id, 'transaction_id', transaction_id, 'priority_fee', priority_fee, 'signature', signature) FROM tx_transactions WHERE signer_id = ($1->>'signer_id') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "tx_transaction/by_receiver",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'block_height', block_height, 'signer_id', signer_id, 'public_key', public_key, 'nonce', nonce, 'receiver_id', receiver_id, 'transaction_id', transaction_id, 'priority_fee', priority_fee, 'signature', signature) FROM tx_transactions WHERE receiver_id = ($1->>'receiver_id') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        }
-    ]
+    "sql_insert": null,
+    "endpoints": []
 } 

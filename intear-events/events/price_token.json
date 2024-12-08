@@ -2,22 +2,6 @@
     "id": "price_token",
     "description": "Fired approximately every 1-15 seconds for each token if its price has changed.",
     "category": "Price",
-    "sql_insert": "INSERT INTO price_token (timestamp, transaction_id, receipt_id, block_height, token_id, price_usd) SELECT to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0), value->>'transaction_id', value->>'receipt_id', (value->>'block_height')::bigint, value->>'token_id', (value->>'price_usd')::numeric FROM jsonb_array_elements($1);",
-    "endpoints": [
-        {
-            "route": "price_token/newest",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'price_usd', price_usd) FROM price_token WHERE (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "price_token/oldest",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'price_usd', price_usd) FROM price_token WHERE (($1->>'after_id')::bigint IS NULL OR id > ($1->>'after_id')::bigint) ORDER BY id ASC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "price_token/by_token",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'price_usd', price_usd) FROM price_token WHERE token_id = ($1->>'token_id') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        }
-    ]
+    "sql_insert": null,
+    "endpoints": []
 } 

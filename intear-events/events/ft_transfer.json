@@ -2,57 +2,6 @@
     "id": "ft_transfer",
     "description": "Fired when FTs are transferred or sold",
     "category": "FT",
-    "sql_insert": "INSERT INTO ft_transfer (timestamp, transaction_id, receipt_id, block_height, token_id, amount, old_owner_id, new_owner_id, memo) SELECT to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0), value->>'transaction_id', value->>'receipt_id', (value->>'block_height')::bigint, value->>'token_id', (value->>'amount')::numeric, value->>'old_owner_id', value->>'new_owner_id', value->>'memo' FROM jsonb_array_elements($1);",
-    "endpoints": [
-        {
-            "route": "ft_transfer/newest",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'amount', amount, 'old_owner_id', old_owner_id, 'new_owner_id', new_owner_id, 'memo', memo) FROM ft_transfer WHERE (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "ft_transfer/oldest",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'amount', amount, 'old_owner_id', old_owner_id, 'new_owner_id', new_owner_id, 'memo', memo) FROM ft_transfer WHERE (($1->>'after_id')::bigint IS NULL OR id > ($1->>'after_id')::bigint) ORDER BY id ASC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "ft_transfer/by_receiver",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'amount', amount, 'old_owner_id', old_owner_id, 'new_owner_id', new_owner_id, 'memo', memo) FROM ft_transfer WHERE new_owner_id = ($1->>'account_id') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "ft_transfer/by_sender",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'amount', amount, 'old_owner_id', old_owner_id, 'new_owner_id', new_owner_id, 'memo', memo) FROM ft_transfer WHERE old_owner_id = ($1->>'account_id') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "ft_transfer/by_sender_or_receiver",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'amount', amount, 'old_owner_id', old_owner_id, 'new_owner_id', new_owner_id, 'memo', memo) FROM ft_transfer WHERE (old_owner_id = ($1->>'account_id') OR new_owner_id = ($1->>'account_id')) AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "ft_transfer/token_newest",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'amount', amount, 'old_owner_id', old_owner_id, 'new_owner_id', new_owner_id, 'memo', memo) FROM ft_transfer WHERE token_id = ($1->>'token') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "ft_transfer/token_oldest",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'amount', amount, 'old_owner_id', old_owner_id, 'new_owner_id', new_owner_id, 'memo', memo) FROM ft_transfer WHERE token_id = ($1->>'token') AND (($1->>'after_id')::bigint IS NULL OR id > ($1->>'after_id')::bigint) ORDER BY id ASC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "ft_transfer/token_by_receiver",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'amount', amount, 'old_owner_id', old_owner_id, 'new_owner_id', new_owner_id, 'memo', memo) FROM ft_transfer WHERE new_owner_id = ($1->>'account_id') AND token_id = ($1->>'token') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "ft_transfer/token_by_sender",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'amount', amount, 'old_owner_id', old_owner_id, 'new_owner_id', new_owner_id, 'memo', memo) FROM ft_transfer WHERE old_owner_id = ($1->>'account_id') AND token_id = ($1->>'token') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "ft_transfer/token_by_sender_or_receiver",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'token_id', token_id, 'amount', amount, 'old_owner_id', old_owner_id, 'new_owner_id', new_owner_id, 'memo', memo) FROM ft_transfer WHERE (old_owner_id = ($1->>'account_id') OR new_owner_id = ($1->>'account_id')) AND token_id = ($1->>'token') AND (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        }
-    ]
+    "sql_insert": null,
+    "endpoints": []
 }

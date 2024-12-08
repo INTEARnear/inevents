@@ -2,17 +2,6 @@
     "id": "newtoken_nep141",
     "description": "Fired when a new NEP-141 token contract is created",
     "category": "New Tokens",
-    "sql_insert": "INSERT INTO newcontract_nep141 (timestamp, transaction_id, receipt_id, block_height, account_id) SELECT to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0), value->>'transaction_id', value->>'receipt_id', (value->>'block_height')::bigint, value->>'account_id' FROM jsonb_array_elements($1);",
-    "endpoints": [
-        {
-            "route": "nep141/newest",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'account_id', account_id) FROM newcontract_nep141 WHERE (($1->>'before_id')::bigint IS NULL OR id < ($1->>'before_id')::bigint) ORDER BY id DESC LIMIT 50;",
-            "openapi": null
-        },
-        {
-            "route": "nep141/oldest",
-            "query": "SELECT json_build_object('id', id, 'timestamp', timestamp, 'transaction_id', transaction_id, 'receipt_id', receipt_id, 'block_height', block_height, 'account_id', account_id) FROM newcontract_nep141 WHERE (($1->>'after_id')::bigint IS NULL OR id > ($1->>'after_id')::bigint) ORDER BY id ASC LIMIT 50;",
-            "openapi": null
-        }
-    ]
+    "sql_insert": null,
+    "endpoints": []
 } 
