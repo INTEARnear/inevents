@@ -34,7 +34,13 @@ async fn main() {
     };
     log::info!("Running {}", module_names.join(", "));
 
-    let events = load_events_from_json("events").expect("Failed to load events");
+    let events = match load_events_from_json("events") {
+        Ok(events) => events,
+        Err(e) => {
+            log::error!("Failed to load events: {e:?}");
+            return;
+        }
+    };
 
     let mut futures = Vec::new();
     for module_name in module_names {
