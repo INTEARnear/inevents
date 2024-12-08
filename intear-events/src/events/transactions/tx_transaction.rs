@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
-pub struct TxTransaction {
+pub struct TxTransactionEvent {
     #[serde(with = "dec_format")]
     #[schemars(with = "String")]
     pub block_timestamp_nanosec: u128,
@@ -23,6 +23,6 @@ pub struct TxTransaction {
     pub transaction_id: CryptoHash,
 }
 
-impl TxTransaction {
+impl TxTransactionEvent {
     pub const ID: &'static str = "tx_transaction";
 }
