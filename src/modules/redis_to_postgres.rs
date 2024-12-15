@@ -36,19 +36,26 @@ impl EventModule for RedisToPostgres {
                         event.id.clone(),
                     );
                     while let Err(err) = stream
-                        .start_reading_events(
+                        .start_reading_event_vecs(
                             "redis_to_postgres",
-                            |value: serde_json::Value| {
+                            |values: Vec<serde_json::Value>| {
                                 let pg_pool = pg_pool.clone();
                                 let sql_insert = sql_insert.clone();
                                 let event_id = event.id.clone();
                                 async move {
+                                    let time = tokio::time::Instant::now();
                                     match sqlx::query(&sql_insert)
-                                        .bind(serde_json::to_value(vec![value]).unwrap())
+                                        .bind(serde_json::to_value(values).unwrap())
                                         .execute(&pg_pool)
                                         .await
                                     {
-                                        Ok(_) => Ok(()),
+                                        Ok(_) => {
+                                            let duration = time.elapsed();
+                                            log::info!(
+                                                "Insertion of {event_id} took {duration:?}"
+                                            );
+                                            Ok(())
+                                        },
                                         Err(err) => {
                                             log::error!(
                                                 "Error inserting {event_id} event into database: {err:?}",
