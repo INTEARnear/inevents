@@ -51,9 +51,11 @@ impl EventModule for RedisToPostgres {
                                     {
                                         Ok(_) => {
                                             let duration = time.elapsed();
-                                            log::info!(
-                                                "Insertion of {event_id} took {duration:?}"
-                                            );
+                                            if duration > Duration::from_millis(25) {
+                                                log::warn!(
+                                                    "Insertion of {event_id} took {duration:?}"
+                                                );
+                                            }
                                             Ok(())
                                         },
                                         Err(err) => {
