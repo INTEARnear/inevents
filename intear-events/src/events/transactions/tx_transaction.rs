@@ -21,7 +21,7 @@ pub struct TxTransactionEvent {
     pub signer_account_id: AccountId,
     #[schemars(with = "String")]
     pub receiver_account_id: AccountId,
-    pub status: &'static str,
+    pub status: String,
     #[schemars(with = "String")]
     pub converted_into_receipt_id: CryptoHash,
     pub receipt_conversion_gas_burnt: u64,
