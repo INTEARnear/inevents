@@ -4,4 +4,4 @@
     "category": "Transactions",
     "sql_insert": "INSERT INTO transactions (transaction_hash, included_in_block_hash, included_in_chunk_hash, index_in_chunk, signer_account_id, receiver_account_id, status, converted_into_receipt_id, receipt_conversion_gas_burnt, receipt_conversion_tokens_burnt, block_timestamp) SELECT value->>'transaction_hash', value->>'included_in_block_hash', value->>'included_in_chunk_hash', (value->>'index_in_chunk')::bigint, value->>'signer_account_id', value->>'receiver_account_id', value->>'status', value->>'converted_into_receipt_id', (value->>'receipt_conversion_gas_burnt')::bigint, (value->>'receipt_conversion_tokens_burnt')::bigint, to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0) FROM jsonb_array_elements($1);",
     "endpoints": []
-} 
+}
