@@ -11,16 +11,21 @@ pub struct TxTransactionEvent {
     pub block_timestamp_nanosec: u128,
     pub block_height: BlockHeight,
     #[schemars(with = "String")]
-    pub signer_id: AccountId,
+    pub transaction_hash: CryptoHash,
     #[schemars(with = "String")]
-    pub public_key: String,
-    pub nonce: u64,
+    pub included_in_block_hash: CryptoHash,
     #[schemars(with = "String")]
-    pub receiver_id: AccountId,
-    pub priority_fee: Option<u64>,
-    pub signature: String,
+    pub included_in_chunk_hash: CryptoHash,
+    pub index_in_chunk: u64,
     #[schemars(with = "String")]
-    pub transaction_id: CryptoHash,
+    pub signer_account_id: AccountId,
+    #[schemars(with = "String")]
+    pub receiver_account_id: AccountId,
+    pub status: String,
+    #[schemars(with = "String")]
+    pub converted_into_receipt_id: CryptoHash,
+    pub receipt_conversion_gas_burnt: u64,
+    pub receipt_conversion_tokens_burnt: u64,
 }
 
 impl TxTransactionEvent {

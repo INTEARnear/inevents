@@ -2,6 +2,6 @@
     "id": "log_nep297",
     "description": "Fired for each NEP-297 event emitted by a contract",
     "category": "Logs",
-    "sql_insert": null,
+    "sql_insert": "INSERT INTO logs1 (timestamp, transaction_id, receipt_id, block_height, account_id, predecessor_id, event_standard, event_version, event_event, event_data) SELECT to_timestamp((value->>'block_timestamp_nanosec')::bigint / 1000000000.0), value->>'transaction_id', value->>'receipt_id', (value->>'block_height')::bigint, value->>'account_id', value->>'predecessor_id', value->>'event_standard', value->>'event_version', value->>'event_event', value->'event_data' FROM jsonb_array_elements($1);",
     "endpoints": []
 }
