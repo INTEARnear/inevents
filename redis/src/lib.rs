@@ -76,11 +76,11 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
             loop {
                 match con.set::<_, _, ()>(&key, &last_id).await {
                     Ok(_) => {
-                        log::info!("Set last id for {reader_id}: {last_id}");
+                        log::info!("Set last id for {key}: {last_id}");
                         break;
                     }
                     Err(err) => {
-                        log::warn!("Failed to set last id for {reader_id}: {err:?}");
+                        log::warn!("Failed to set last id for {key}: {err:?}");
                         tokio::time::sleep(Duration::from_secs(1)).await;
                     }
                 }
@@ -126,11 +126,11 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
             loop {
                 match con.set::<_, _, ()>(&key, &last_id).await {
                     Ok(_) => {
-                        log::info!("Set last id for {reader_id}: {last_id}");
+                        log::info!("Set last id for {key}: {last_id}");
                         break;
                     }
                     Err(err) => {
-                        log::warn!("Failed to set last id for {reader_id}: {err:?}");
+                        log::warn!("Failed to set last id for {key}: {err:?}");
                         tokio::time::sleep(Duration::from_secs(1)).await;
                     }
                 }
