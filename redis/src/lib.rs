@@ -146,8 +146,8 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
                     &[&self.stream_name],
                     &[&start_id],
                     &StreamReadOptions::default()
-                        .count(10000)
-                        .block(Duration::from_millis(250).as_millis() as usize),
+                        .count(1)
+                        .block(Duration::from_millis(100).as_millis() as usize),
                 )
                 .await {
                     Ok(result) => break result,
