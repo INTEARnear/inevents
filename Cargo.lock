@@ -1784,6 +1784,7 @@ dependencies = [
  "dashmap",
  "futures",
  "inevents-redis",
+ "json-filter",
  "log",
  "near-indexer-primitives",
  "redis",
@@ -1816,11 +1817,12 @@ dependencies = [
 
 [[package]]
 name = "inevents-websocket-client"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "async-tungstenite",
  "env_logger 0.10.2",
  "futures-util",
+ "json-filter",
  "log",
  "reqwest 0.11.27",
  "serde",
@@ -1926,6 +1928,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a88f1bda2bd75b0452a14784937d796722fdebfe50df998aeb3f0b7603019a9"
 dependencies = [
  "wasm-bindgen",
+]
+
+[[package]]
+name = "json-filter"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

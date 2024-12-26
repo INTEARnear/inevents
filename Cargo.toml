@@ -5,7 +5,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [workspace]
-members = [".", "redis", "intear-events", "websocket-client"]
+members = [".", "redis", "intear-events", "websocket-client", "json-filter"]
 
 [dependencies]
 log = "0.4.21"
@@ -34,3 +34,4 @@ schemars = "0.8.21"
 futures = "0.3.30"
 tokio-util = "0.7.11"
 thiserror = "1.0.49"
+json-filter = { path = "./json-filter" }

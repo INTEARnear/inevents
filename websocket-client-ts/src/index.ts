@@ -1,4 +1,5 @@
 import WebSocket from 'ws';
+import { Operator } from './filter';
 
 interface WebSocketAdapter {
     send(data: string, callback?: (err?: Error) => void): void;
@@ -137,6 +138,7 @@ export class EventStreamClient {
 
     async streamEvents<E>(
         eventId: string,
+        filter: Operator | null,
         callback: (event: E) => Promise<void>
     ): Promise<void> {
         outer: while (!this.abortController.signal.aborted) {
@@ -160,8 +162,9 @@ export class EventStreamClient {
                     break outer;
                 }
 
+                const filterJson = filter ?? { And: [] };
                 await new Promise<void>((resolve, reject) => {
-                    ws.send('{"And":[]}', (error) => {
+                    ws.send(JSON.stringify(filterJson), (error) => {
                         if (error) reject(error);
                         else resolve();
                     });
@@ -224,3 +227,5 @@ export class EventStreamClient {
         }
     }
 }
+
+export * from './filter';
