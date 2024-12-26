@@ -8,10 +8,15 @@
     "test": "jest",
     "prepublish": "npm run build"
   },
-  "keywords": [],
+  "keywords": [
+    "websocket",
+    "events",
+    "streaming",
+    "inevents"
+  ],
   "author": "",
   "license": "ISC",
-  "description": "WebSocket client for streaming events",
+  "description": "Event streaming client for Intear events API",
   "dependencies": {
     "@types/ws": "^8.5.10",
     "ws": "^8.16.0"

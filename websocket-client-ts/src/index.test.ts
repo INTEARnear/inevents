@@ -1,23 +1,23 @@
 /// <reference types="jest" />
 import { describe, expect, it, jest } from '@jest/globals';
-import { WebSocketServer } from './index';
+import { EventStreamClient } from './index';
 
-describe('WebSocketServer', () => {
+describe('EventStreamClient', () => {
     jest.setTimeout(15000); // 15 seconds
 
     it('should receive events from log_text stream', async () => {
-        const server = WebSocketServer.default();
+        const client = EventStreamClient.default();
         const receivedEvents: unknown[] = [];
 
         await Promise.race([
-            server.streamV3Events<unknown>(
+            client.streamEvents<unknown>(
                 'log_text',
                 async (event) => {
                     receivedEvents.push(event);
                 }
             ),
             new Promise(resolve => setTimeout(() => {
-                server.abort();
+                client.abort();
                 resolve(undefined);
             }, 10000))
         ]);

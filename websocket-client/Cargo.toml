@@ -2,7 +2,7 @@
 name = "inevents-websocket-client"
 version = "0.1.0"
 edition = "2021"
-description = "A client for Intear events websocket API"
+description = "Event streaming client for Intear events API"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/INTEARnear/inevents"
 
