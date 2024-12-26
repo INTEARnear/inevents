@@ -3,20 +3,20 @@ use serde::de::DeserializeOwned;
 use tokio_tungstenite::tungstenite::Message;
 
 #[derive(Clone)]
-pub struct WebSocketServer(reqwest::Url);
+pub struct EventStreamClient(reqwest::Url);
 
-impl Default for WebSocketServer {
+impl Default for EventStreamClient {
     fn default() -> Self {
         Self(reqwest::Url::parse("wss://ws-events-v3.intear.tech").unwrap())
     }
 }
 
-impl WebSocketServer {
+impl EventStreamClient {
     pub fn new(url: reqwest::Url) -> Self {
         Self(url)
     }
 
-    pub async fn stream_v3_events<E, F, Fut>(&self, event_id: &'static str, mut callback: F)
+    pub async fn stream_events<E, F, Fut>(&self, event_id: &'static str, mut callback: F)
     where
         E: DeserializeOwned + Send + 'static,
         F: FnMut(E) -> Fut + Send + 'static,
@@ -39,12 +39,17 @@ impl WebSocketServer {
 
             while let Some(message) = stream.next().await {
                 let Ok(msg) = message else {
+                    log::warn!("Connection error, reconnecting in 1 second");
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                     continue 'outer;
                 };
                 match msg {
                     Message::Close(_) => {
-                        log::warn!("Event stream events/{event_id} closed");
-                        break 'outer;
+                        log::warn!(
+                            "Event stream events/{event_id} closed, reconnecting in 1 second"
+                        );
+                        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                        continue 'outer;
                     }
                     Message::Ping(data) => {
                         stream
@@ -64,7 +69,8 @@ impl WebSocketServer {
                     Message::Frame(_) => unreachable!(),
                 }
             }
-            log::warn!("Reconnecting to event stream events/{event_id}");
+            log::warn!("Connection lost, reconnecting in 1 second");
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         }
     }
 }
@@ -76,16 +82,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_log_text_stream() {
-        let server = WebSocketServer::default();
+        let client = EventStreamClient::default();
         let received_events = Arc::new(Mutex::new(Vec::new()));
         let events_clone = Arc::clone(&received_events);
 
         let handle = tokio::spawn(async move {
-            server
-                .stream_v3_events::<serde_json::Value, _, _>("log_text", move |event| {
+            client
+                .stream_events::<serde_json::Value, _, _>("log_text", move |event| {
                     let events = Arc::clone(&events_clone);
                     async move {
-                        println!("Received event: {}", serde_json::to_string(&event).unwrap());
                         events.lock().unwrap().push(event);
                     }
                 })
@@ -98,5 +103,15 @@ mod tests {
 
         let final_events = received_events.lock().unwrap();
         assert!(!final_events.is_empty(), "Should have received some events");
+        println!("\nTest Summary:");
+        println!("Total events received: {}", final_events.len());
+        println!(
+            "First event: {}",
+            serde_json::to_string(&final_events[0]).unwrap()
+        );
+        println!(
+            "Last event: {}",
+            serde_json::to_string(&final_events.last().unwrap()).unwrap()
+        );
     }
 }
