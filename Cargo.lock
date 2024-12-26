@@ -1784,7 +1784,7 @@ dependencies = [
  "dashmap",
  "futures",
  "inevents-redis",
- "json-filter",
+ "json-filter 0.1.0",
  "log",
  "near-indexer-primitives",
  "redis",
@@ -1822,7 +1822,7 @@ dependencies = [
  "async-tungstenite",
  "env_logger 0.10.2",
  "futures-util",
- "json-filter",
+ "json-filter 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log",
  "reqwest 0.11.27",
  "serde",
@@ -1933,6 +1933,17 @@ dependencies = [
 [[package]]
 name = "json-filter"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "json-filter"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "beea240a5168cc8756e18a96fc2de3e09224ee65dc18074a01cdad3645011bd7"
 dependencies = [
  "serde",
  "serde_json",
