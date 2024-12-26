@@ -35,7 +35,7 @@
   "description": "Event streaming client for Intear events API",
   "repository": {
     "type": "git",
-    "url": "https://github.com/INTEARnear/inevents"
+    "url": "git+https://github.com/INTEARnear/inevents.git"
   },
   "dependencies": {
     "@types/ws": "^8.5.10",
