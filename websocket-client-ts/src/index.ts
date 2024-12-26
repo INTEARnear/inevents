@@ -1,5 +1,117 @@
 import WebSocket from 'ws';
 
+interface WebSocketAdapter {
+    send(data: string, callback?: (err?: Error) => void): void;
+    close(): void;
+    terminate?(): void;
+    on(event: string, listener: (...args: any[]) => void): void;
+    once(event: string, listener: (...args: any[]) => void): void;
+    addEventListener(event: string, listener: (...args: any[]) => void): void;
+}
+
+class NodeWebSocketAdapter implements WebSocketAdapter {
+    private ws: WebSocket;
+
+    constructor(url: string) {
+        this.ws = new WebSocket(url);
+    }
+
+    send(data: string, callback?: (err?: Error) => void): void {
+        this.ws.send(data, callback);
+    }
+
+    close(): void {
+        this.ws.close();
+    }
+
+    terminate(): void {
+        this.ws.terminate();
+    }
+
+    on(event: string, listener: (...args: any[]) => void): void {
+        if (event === 'ping') {
+            this.ws.on('ping', (data) => {
+                this.ws.pong(data);
+                listener(data);
+            });
+        } else {
+            this.ws.on(event, listener);
+        }
+    }
+
+    once(event: string, listener: (...args: any[]) => void): void {
+        this.ws.once(event, listener);
+    }
+
+    addEventListener(event: string, listener: (...args: any[]) => void): void {
+        this.ws.on(event, listener);
+    }
+}
+
+class BrowserWebSocketAdapter implements WebSocketAdapter {
+    private ws: globalThis.WebSocket;
+
+    constructor(url: string) {
+        this.ws = new globalThis.WebSocket(url);
+    }
+
+    send(data: string, callback?: (err?: Error) => void): void {
+        try {
+            this.ws.send(data);
+            callback?.();
+        } catch (err) {
+            callback?.(err as Error);
+        }
+    }
+
+    close(): void {
+        this.ws.close();
+    }
+
+    terminate(): void {
+        this.ws.close();
+    }
+
+    on(event: string, listener: (...args: any[]) => void): void {
+        if (event === 'message') {
+            this.ws.onmessage = (ev) => listener(ev.data);
+        } else if (event === 'close') {
+            this.ws.onclose = listener;
+        } else if (event === 'error') {
+            this.ws.onerror = listener;
+        } else if (event === 'ping') {
+            // Browser WebSocket API doesn't expose ping/pong
+        }
+    }
+
+    once(event: string, listener: (...args: any[]) => void): void {
+        const wrappedListener = (...args: any[]) => {
+            this.ws.removeEventListener(event, wrappedListener);
+            listener(...args);
+        };
+        if (event === 'message') {
+            this.ws.addEventListener('message', (ev) => wrappedListener(ev.data));
+        } else {
+            this.ws.addEventListener(event, wrappedListener);
+        }
+    }
+
+    addEventListener(event: string, listener: (...args: any[]) => void): void {
+        if (event === 'message') {
+            this.ws.addEventListener('message', (ev) => listener(ev.data));
+        } else {
+            this.ws.addEventListener(event, listener);
+        }
+    }
+}
+
+function createWebSocket(url: string): WebSocketAdapter {
+    if (typeof window !== 'undefined' && window.WebSocket) {
+        return new BrowserWebSocketAdapter(url);
+    }
+    return new NodeWebSocketAdapter(url);
+}
+
 export class EventStreamClient {
     private url: URL;
     private abortController: AbortController;
@@ -29,7 +141,7 @@ export class EventStreamClient {
     ): Promise<void> {
         outer: while (!this.abortController.signal.aborted) {
             const url = new URL(`events/${eventId}`, this.url);
-            const ws = new WebSocket(url.toString());
+            const ws = createWebSocket(url.toString());
             let isAborting = false;
 
             try {
@@ -80,10 +192,6 @@ export class EventStreamClient {
                         }
                     });
 
-                    ws.on('ping', (data) => {
-                        ws.pong(data);
-                    });
-
                     ws.on('close', () => {
                         if (!isAborting) {
                             console.warn(`Event stream events/${eventId} closed, reconnecting in 1 second`);
@@ -106,35 +214,13 @@ export class EventStreamClient {
                     console.warn(`Reconnecting to event stream events/${eventId} in 1 second`);
                     await this.delay(1000);
                 }
-                ws.terminate();
+                if (ws.terminate) {
+                    ws.terminate();
+                } else {
+                    ws.close();
+                }
                 continue outer;
             }
         }
     }
 }
-
-// Example usage and test
-if (require.main === module) {
-    (async () => {
-        const client = EventStreamClient.default();
-        const receivedEvents: unknown[] = [];
-
-        try {
-            await Promise.race([
-                client.streamEvents<unknown>(
-                    'log_text',
-                    async (event) => {
-                        console.log('Received event:', JSON.stringify(event));
-                        receivedEvents.push(event);
-                    }
-                ),
-                new Promise(resolve => setTimeout(() => {
-                    client.abort();
-                    resolve(undefined);
-                }, 10000))
-            ]);
-        } catch (error: unknown) {
-            console.error('Unexpected error:', error);
-        }
-    })();
-} 
