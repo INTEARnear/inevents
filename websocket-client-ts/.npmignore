@@ -1,0 +1,9 @@
+src/
+tests/
+jest.config.js
+tsconfig.json
+.gitignore
+*.test.ts
+*.test.js
+*.test.d.ts
+*.test.js.map 

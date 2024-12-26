@@ -1,22 +1,34 @@
 {
-  "name": "inevents-websocket-client",
+  "name": "@intear/inevents-websocket-client",
   "version": "1.0.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "jest",
-    "prepublish": "npm run build"
+    "clean": "rm -rf dist",
+    "prepare": "npm run clean && npm run build",
+    "prepublishOnly": "npm test"
   },
   "keywords": [
     "websocket",
     "events",
     "streaming",
-    "inevents"
+    "inevents",
+    "near",
+    "blockchain"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "INTEAR",
+  "license": "MIT",
   "description": "Event streaming client for Intear events API",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/INTEARnear/inevents"
+  },
   "dependencies": {
     "@types/ws": "^8.5.10",
     "ws": "^8.16.0"
