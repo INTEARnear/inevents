@@ -21,7 +21,7 @@ pub struct TxTransactionEvent {
     pub signer_account_id: AccountId,
     #[schemars(with = "String")]
     pub receiver_account_id: AccountId,
-    pub status: String,
+    pub status: TxTransactionStatus,
     #[schemars(with = "String")]
     pub converted_into_receipt_id: CryptoHash,
     pub receipt_conversion_gas_burnt: u64,
@@ -32,9 +32,13 @@ pub struct TxTransactionEvent {
 
 impl TxTransactionEvent {
     pub const ID: &'static str = "tx_transaction";
+}
 
-    pub const STATUS_SUCCESS_VALUE: &'static str = "SUCCESS_VALUE";
-    pub const STATUS_SUCCESS_RECEIPT_ID: &'static str = "SUCCESS_RECEIPT_ID";
-    pub const STATUS_FAILURE: &'static str = "FAILURE";
-    pub const STATUS_UNKNOWN: &'static str = "UNKNOWN";
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum TxTransactionStatus {
+    SuccessValue,
+    SuccessReceiptId,
+    Failure,
+    Unknown,
 }
