@@ -1,5 +1,0 @@
-BEGIN;
-
-ALTER TABLE potlock_donation ADD COLUMN ft_id TEXT NOT NULL DEFAULT 'near';
-
-COMMIT;

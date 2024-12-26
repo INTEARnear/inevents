@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 use std::future::Future;
-use std::sync::OnceLock;
 use std::time::Duration;
 
 use redis::{
@@ -9,15 +8,11 @@ use redis::{
     AsyncCommands,
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc::Sender;
-use tokio::task::JoinHandle;
-
-type Queue<T> = (JoinHandle<()>, Sender<(String, T)>);
 
 pub struct RedisEventStream<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> {
     pub connection: ConnectionManager,
     pub stream_name: String,
-    queue: OnceLock<Queue<T>>,
+    to_be_published: Vec<T>,
     _marker: std::marker::PhantomData<T>,
 }
 
@@ -40,7 +35,7 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
         Self {
             connection,
             stream_name: stream_name.into(),
-            queue: OnceLock::new(),
+            to_be_published: Vec::new(),
             _marker: std::marker::PhantomData,
         }
     }
@@ -55,8 +50,9 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
     ) -> Result<(), EventStreamError<E>> {
         let mut con = self.connection.clone();
         let reader_id = reader_id.into();
+        let key = format!("{}-{}", &reader_id, self.stream_name);
         let last_id: Option<String> = con
-            .get(format!("{}-{}", &reader_id, self.stream_name))
+            .get(&key)
             .await
             .map_err(EventStreamError::CantGetLastId)?;
         let mut last_id = last_id.unwrap_or("0".to_string());
@@ -64,25 +60,27 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
             if should_stop() {
                 break Ok(());
             }
-            let events = self.read_event(&last_id).await;
+            let events = self.read_events(&last_id).await;
             if events.is_empty() {
                 tokio::task::yield_now().await;
                 continue;
             }
-            for (id, event) in events {
-                f(event)
-                    .await
-                    .map_err(|e| EventStreamError::EventHandlerError(e))?;
+            for (id, events) in events {
+                for event in events {
+                    f(event)
+                        .await
+                        .map_err(|e| EventStreamError::EventHandlerError(e))?;
+                }
                 last_id = id;
             }
             loop {
-                match con
-                    .set::<_, _, ()>(format!("{}-{}", &reader_id, self.stream_name), &last_id)
-                    .await
-                {
-                    Ok(_) => break,
+                match con.set::<_, _, ()>(&key, &last_id).await {
+                    Ok(_) => {
+                        log::info!("Set last id for {key}: {last_id}");
+                        break;
+                    }
                     Err(err) => {
-                        log::warn!("Failed to set last id for {reader_id}: {err:?}");
+                        log::warn!("Failed to set last id for {key}: {err:?}");
                         tokio::time::sleep(Duration::from_secs(1)).await;
                     }
                 }
@@ -90,7 +88,57 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
         }
     }
 
-    pub async fn read_event(&mut self, start_id: impl Into<String>) -> Vec<(String, T)> {
+    /// Reads vecs of events from the stream, runs forever. Last read index will is
+    /// saved in Redis by key "{reader_id}-{stream_name}".
+    pub async fn start_reading_event_vecs<
+        E,
+        R: Future<Output = Result<(), E>>,
+        F: FnMut(Vec<T>) -> R,
+    >(
+        &mut self,
+        reader_id: impl Into<String>,
+        mut f: F,
+        should_stop: impl Fn() -> bool,
+    ) -> Result<(), EventStreamError<E>> {
+        let mut con = self.connection.clone();
+        let reader_id = reader_id.into();
+        let key = format!("{}-{}", &reader_id, self.stream_name);
+        let last_id: Option<String> = con
+            .get(&key)
+            .await
+            .map_err(EventStreamError::CantGetLastId)?;
+        let mut last_id = last_id.unwrap_or("0".to_string());
+        loop {
+            if should_stop() {
+                break Ok(());
+            }
+            let events = self.read_events(&last_id).await;
+            if events.is_empty() {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                continue;
+            }
+            for (id, events) in events {
+                f(events)
+                    .await
+                    .map_err(|e| EventStreamError::EventHandlerError(e))?;
+                last_id = id;
+            }
+            loop {
+                match con.set::<_, _, ()>(&key, &last_id).await {
+                    Ok(_) => {
+                        log::info!("Set last id for {key}: {last_id}");
+                        break;
+                    }
+                    Err(err) => {
+                        log::warn!("Failed to set last id for {key}: {err:?}");
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                    }
+                }
+            }
+        }
+    }
+
+    pub async fn read_events(&mut self, start_id: impl Into<String>) -> Vec<(String, Vec<T>)> {
         let start_id = start_id.into();
         let result = loop {
             match self.connection
@@ -98,8 +146,8 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
                     &[&self.stream_name],
                     &[&start_id],
                     &StreamReadOptions::default()
-                        .count(10000)
-                        .block(Duration::from_millis(250).as_millis() as usize),
+                        .count(1)
+                        .block(Duration::from_millis(100).as_millis() as usize),
                 )
                 .await {
                     Ok(result) => break result,
@@ -120,7 +168,7 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
                         .map(|(id, fields)| {
                             let (key, event) = &fields[0];
                             assert_eq!(key, "event");
-                            (id, serde_json::from_str::<T>(event).unwrap())
+                            (id, serde_json::from_str::<Vec<T>>(event).unwrap())
                         })
                         .collect::<Vec<_>>()
                 })
@@ -129,56 +177,55 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
         }
     }
 
+    /// Add an event to be published. After adding enough events, use `flush_events` to
+    /// publish them to a Redis stream.
+    pub fn add_event(&mut self, value: T) {
+        self.to_be_published.push(value);
+    }
+
     /// Index is a value that is used to identify the sequence of events.
     /// Recommended to use block height or a timestamp. The actual index
     /// will be the stream name followed by a hyphen and the index assigned
     /// by Redis.
-    pub async fn emit_event(
-        &self,
+    pub async fn flush_events(
+        &mut self,
         index: impl ToString,
-        value: T,
         max_len: usize,
     ) -> Result<(), EventEmitError<T>> {
-        let (_, tx) = self.queue.get_or_init(|| {
-            let (tx, mut rx) = tokio::sync::mpsc::channel(max_len);
-
-            let mut connection = self.connection.clone();
-            let stream_name = self.stream_name.clone();
-
-            let join_handle = tokio::spawn(async move {
-                while let Some((index, value)) = rx.recv().await {
-                    while let Err(err) = connection
-                        .xadd_maxlen::<_, _, _, _, ()>(
-                            &stream_name,
-                            StreamMaxlen::Approx(max_len),
-                            format!("{index}-*"),
-                            &[(
-                                "event",
-                                serde_json::to_string(&value).unwrap_or_else(|err| {
-                                    panic!("Failed to serialize {stream_name} event: {err:?}")
-                                }),
-                            )],
+        if self.to_be_published.is_empty() {
+            return Ok(());
+        }
+        log::info!(
+            "Flushing {stream_name} events at index {index}",
+            stream_name = self.stream_name,
+            index = index.to_string()
+        );
+        while let Err(err) = self
+            .connection
+            .xadd_maxlen::<_, _, _, _, ()>(
+                &self.stream_name,
+                StreamMaxlen::Approx(max_len),
+                format!("{index}-*", index = index.to_string()),
+                &[(
+                    "event",
+                    serde_json::to_string(&self.to_be_published).unwrap_or_else(|err| {
+                        panic!(
+                            "Failed to serialize {stream_name} event: {err:?}",
+                            stream_name = self.stream_name
                         )
-                        .await
-                    {
-                        log::warn!("Failed to emit {stream_name} event at index {index}: {err:?}");
-                        tokio::time::sleep(Duration::from_secs(1)).await;
-                    }
-                }
-            });
-
-            (join_handle, tx)
-        });
-        match tx.send((index.to_string(), value)).await {
-            Ok(()) => Ok(()),
-            Err(e) => Err(EventEmitError::ChannelClosed(e)),
+                    }),
+                )],
+            )
+            .await
+        {
+            log::warn!(
+                "Failed to emit {stream_name} event at index {index}: {err:?}",
+                stream_name = self.stream_name,
+                index = index.to_string()
+            );
+            tokio::time::sleep(Duration::from_secs(1)).await;
         }
-    }
-
-    pub async fn stop(self) {
-        if let Some((join_handle, tx)) = self.queue.into_inner() {
-            drop(tx); // Receiving end of the channel will close when all senders are dropped
-            join_handle.await.expect("Failed to stop the event stream");
-        }
+        self.to_be_published.clear();
+        Ok(())
     }
 }

@@ -1,48 +1,16 @@
-#[cfg(feature = "impl")]
-use intear_events::events;
-
-#[cfg(feature = "impl")]
-use events::{
-    nft::{nft_burn::NftBurnEvent, nft_mint::NftMintEvent, nft_transfer::NftTransferEvent},
-    potlock::{
-        potlock_donation::PotlockDonationEvent, potlock_pot_donation::PotlockPotDonationEvent,
-        potlock_pot_project_donation::PotlockPotProjectDonationEvent,
-    },
-    price::{price_pool::PricePoolEvent, price_token::PriceTokenEvent},
-    trade::{
-        trade_pool::TradePoolEvent, trade_pool_change::TradePoolChangeEvent,
-        trade_swap::TradeSwapEvent,
-    },
-};
-#[cfg(feature = "impl")]
 use inevents::{
-    create_events,
+    anyhow::Context,
+    events::event::{Event, Query, QueryEndpoint},
     modules::{
         http_server::HttpServer, redis_to_postgres::RedisToPostgres,
         websocket_server::WebsocketServer, EventModule,
     },
 };
-#[cfg(feature = "impl")]
-use intear_events::events::{
-    log::{log_nep297::LogNep297Event, log_text::LogTextEvent},
-    newcontract::{meme_cooking_meme::NewMemeCookingMemeEvent, nep141::NewContractNep141Event},
-    socialdb::index::SocialDBIndexEvent,
-    tps::{block_info::BlockInfoEvent, moretps_claims::MoreTpsClaimEvent},
-};
+use intear_events::events::price::price_token::{OhlcEndpoint, PriceTokenEvent};
+use std::{collections::HashMap, fs, sync::Arc};
 
-#[cfg(feature = "impl")]
 #[tokio::main]
 async fn main() {
-    use intear_events::events::ft::ft_burn::FtBurnEvent;
-    use intear_events::events::ft::ft_mint::FtMintEvent;
-    use intear_events::events::ft::ft_transfer::FtTransferEvent;
-    use intear_events::events::newcontract::meme_cooking_token::NewMemeCookingTokenEvent;
-    use intear_events::events::trade::liquidity_pool::LiquidityPoolEvent;
-    use intear_events::events::trade::memecooking_deposit::MemeCookingDepositEvent;
-    use intear_events::events::trade::memecooking_withdraw::MemeCookingWithdrawEvent;
-    use intear_events::events::transactions::tx_receipt::TxReceiptEvent;
-    use intear_events::events::transactions::tx_transaction::TxTransactionEvent;
-
     dotenvy::dotenv().ok();
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Info)
@@ -66,45 +34,31 @@ async fn main() {
     };
     log::info!("Running {}", module_names.join(", "));
 
-    create_events!(Events:
-        NftMintEvent,
-        NftBurnEvent,
-        NftTransferEvent,
-        PotlockDonationEvent,
-        PotlockPotProjectDonationEvent,
-        PotlockPotDonationEvent,
-        TradePoolEvent,
-        TradeSwapEvent,
-        TradePoolChangeEvent,
-        PricePoolEvent,
-        PriceTokenEvent,
-        NewContractNep141Event,
-        SocialDBIndexEvent,
-        LogTextEvent,
-        LogNep297Event,
-        NewMemeCookingMemeEvent,
-        BlockInfoEvent,
-        MoreTpsClaimEvent,
-        MemeCookingDepositEvent,
-        MemeCookingWithdrawEvent,
-        NewMemeCookingTokenEvent,
-        TxTransactionEvent,
-        TxReceiptEvent,
-        FtMintEvent,
-        FtTransferEvent,
-        FtBurnEvent,
-        LiquidityPoolEvent,
-    );
+    let events = match load_events_from_json("events") {
+        Ok(events) => events,
+        Err(e) => {
+            log::error!("Failed to load events: {e:?}");
+            return;
+        }
+    };
 
     let mut futures = Vec::new();
     for module_name in module_names {
         match module_name.as_str() {
             "http-server" => {
                 futures.push(
-                    HttpServer::new(Some(
-                        "https://docs.intear.tech/docs/events-api/".to_string(),
-                    ))
-                    .start::<Events>(),
+                    HttpServer::new(
+                        Some("https://docs.intear.tech/docs/events-api/".to_string()),
+                        HashMap::from_iter([(
+                            PriceTokenEvent::ID.to_string(),
+                            vec![QueryEndpoint {
+                                route: "ohlc".to_string(),
+                                openapi: None,
+                                query: Query::Custom(Arc::new(OhlcEndpoint)),
+                            }],
+                        )]),
+                    )
+                    .start(events.clone()),
                 );
             }
             "websocket-server" => {
@@ -112,11 +66,11 @@ async fn main() {
                     WebsocketServer::new(Some(
                         "https://docs.intear.tech/docs/events-api/".to_string(),
                     ))
-                    .start::<Events>(),
+                    .start(events.clone()),
                 );
             }
             "redis-to-postgres" => {
-                futures.push(RedisToPostgres.start::<Events>());
+                futures.push(RedisToPostgres.start(events.clone()));
             }
             _ => {
                 log::error!("Unknown module: {module_name}");
@@ -132,7 +86,18 @@ async fn main() {
     }
 }
 
-#[cfg(not(feature = "impl"))]
-fn main() {
-    log::error!("This binary was compiled without the 'impl' feature. Please enable the 'impl' feature to run the binary.");
+fn load_events_from_json(dir: &str) -> Result<Vec<Event>, Box<dyn std::error::Error>> {
+    let mut events = Vec::new();
+    for entry in fs::read_dir(dir).context(format!("Failed to read event directory {:?}", dir))? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
+            let content = fs::read_to_string(&path)
+                .context(format!("Failed to read event file {:?}", path.as_os_str()))?;
+            let event: Event = serde_json::from_str(&content)
+                .context(format!("Failed to parse event file {:?}", path.as_os_str()))?;
+            events.push(event);
+        }
+    }
+    Ok(events)
 }

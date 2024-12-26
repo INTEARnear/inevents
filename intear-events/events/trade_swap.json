@@ -1,0 +1,7 @@
+{
+    "id": "trade_swap",
+    "description": "Fired when someone exchanges tokens.",
+    "category": "Trade",
+    "sql_insert": null,
+    "endpoints": []
+} 
