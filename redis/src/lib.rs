@@ -62,7 +62,7 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
             }
             let events = self.read_events(&last_id).await;
             if events.is_empty() {
-                tokio::task::yield_now().await;
+                tokio::time::sleep(Duration::from_millis(25)).await;
                 continue;
             }
             for (id, events) in events {
@@ -114,7 +114,7 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
             }
             let events = self.read_events(&last_id).await;
             if events.is_empty() {
-                tokio::time::sleep(Duration::from_millis(100)).await;
+                tokio::time::sleep(Duration::from_millis(25)).await;
                 continue;
             }
             for (id, events) in events {
@@ -146,8 +146,8 @@ impl<T: Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static> RedisEven
                     &[&self.stream_name],
                     &[&start_id],
                     &StreamReadOptions::default()
-                        .count(1)
-                        .block(Duration::from_millis(100).as_millis() as usize),
+                        .count(100)
+                        .block(Duration::from_millis(25).as_millis() as usize),
                 )
                 .await {
                     Ok(result) => break result,
