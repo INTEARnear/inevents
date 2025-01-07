@@ -130,45 +130,52 @@ impl EventModule for HttpServer {
                 ) {
                     let endpoint = Rc::new(endpoint);
                     let pg_pool = pg_pool.clone();
-                    log::info!("Registering endpoint /v3/{}", endpoint.route);
-                    api = api.service(web::resource(&endpoint.route).route(web::get().to(
-                        move |query: web::Query<HashMap<String, String>>| {
-                            let pg_pool = pg_pool.clone();
-                            let endpoint = Rc::clone(&endpoint);
-                            let query = query.into_inner();
-                            async move {
-                                let sql_query = &endpoint.query;
-                                match sql_query {
-                                    Query::Sql(sql_query) => {
-                                        match sqlx::query_as::<_, (serde_json::Value,)>(sql_query)
+                    log::info!("Registering endpoint /v3/{}/{}", event.id, endpoint.route);
+                    api = api.service(
+                        web::resource(&format!("{}/{}", event.id, endpoint.route)).route(
+                            web::get().to(move |query: web::Query<HashMap<String, String>>| {
+                                let pg_pool = pg_pool.clone();
+                                let endpoint = Rc::clone(&endpoint);
+                                let query = query.into_inner();
+                                async move {
+                                    let sql_query = &endpoint.query;
+                                    match sql_query {
+                                        Query::Sql(sql_query) => {
+                                            match sqlx::query_as::<_, (serde_json::Value,)>(
+                                                sql_query,
+                                            )
                                             .bind(serde_json::to_value(&query).unwrap())
                                             .fetch_all(&pg_pool)
                                             .await
-                                        {
-                                            Ok(records) => HttpResponseBuilder::new(StatusCode::OK)
+                                            {
+                                                Ok(records) => HttpResponseBuilder::new(
+                                                    StatusCode::OK,
+                                                )
                                                 .json(serde_json::json!(records
                                                     .into_iter()
                                                     .map(|record| record.0)
                                                     .collect::<Vec<_>>())),
-                                            Err(err) => {
-                                                log::error!("Error querying database: {err:?}");
-                                                HttpResponseBuilder::new(
+                                                Err(err) => {
+                                                    log::error!("Error querying database: {err:?}");
+                                                    HttpResponseBuilder::new(
                                                     StatusCode::INTERNAL_SERVER_ERROR,
                                                 )
                                                 .json(
                                                     serde_json::json!({"error": format!("{err}")}),
                                                 )
+                                                }
                                             }
                                         }
-                                    }
-                                    Query::Custom(endpoint) => {
-                                        let (status, body) = endpoint.handle(pg_pool, query).await;
-                                        HttpResponseBuilder::new(status).json(body)
+                                        Query::Custom(endpoint) => {
+                                            let (status, body) =
+                                                endpoint.handle(pg_pool, query).await;
+                                            HttpResponseBuilder::new(status).json(body)
+                                        }
                                     }
                                 }
-                            }
-                        },
-                    )));
+                            }),
+                        ),
+                    );
                 }
             }
 
