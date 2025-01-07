@@ -1,7 +1,0 @@
-{
-    "id": "socialdb_index",
-    "description": "Fired when an index is updated in the social database.",
-    "category": "SocialDB",
-    "sql_insert": null,
-    "endpoints": []
-} 

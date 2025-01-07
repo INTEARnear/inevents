@@ -1,7 +1,0 @@
-{
-    "id": "trade_pool_change",
-    "description": "Fired when a DEX pool changes.",
-    "category": "Trade",
-    "sql_insert": null,
-    "endpoints": []
-} 

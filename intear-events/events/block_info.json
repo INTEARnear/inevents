@@ -1,7 +1,0 @@
-{
-    "id": "block_info",
-    "description": "Information about blocks",
-    "category": "TPS",
-    "sql_insert": null,
-    "endpoints": []
-}

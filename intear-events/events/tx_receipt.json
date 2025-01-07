@@ -1,7 +1,0 @@
-{
-    "id": "tx_receipt",
-    "description": "High-level receipt information",
-    "category": "Transactions",
-    "sql_insert": null,
-    "endpoints": []
-} 
