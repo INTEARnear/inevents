@@ -146,9 +146,10 @@ impl EventModule for HttpServer {
                                             .await
                                         {
                                             Ok(records) => HttpResponseBuilder::new(StatusCode::OK)
-                                                .json(serde_json::json!({
-                                                    "result": records,
-                                                })),
+                                                .json(serde_json::json!(records
+                                                    .into_iter()
+                                                    .map(|record| record.0)
+                                                    .collect::<Vec<_>>())),
                                             Err(err) => {
                                                 log::error!("Error querying database: {err:?}");
                                                 HttpResponseBuilder::new(
