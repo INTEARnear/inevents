@@ -11,7 +11,8 @@ pub struct Event {
     pub id: String,
     pub description: Option<String>,
     pub category: String,
-    pub sql_insert: Option<String>,
+    #[serde(default)]
+    pub sql_insert: Vec<String>,
     pub endpoints: Vec<QueryEndpoint>,
 }
 

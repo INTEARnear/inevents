@@ -23,10 +23,9 @@ impl EventModule for RedisToPostgres {
         let mut tasks = Vec::new();
         let cancellation_token = CancellationToken::new();
         for event in events {
-            if let Some(sql_insert) = event.sql_insert {
-                let pg_pool = pg_pool.clone();
-                let cancellation_token_cloned = cancellation_token.clone();
-                tasks.push(tokio::spawn(async move {
+            let pg_pool = pg_pool.clone();
+            let cancellation_token_cloned = cancellation_token.clone();
+            tasks.push(tokio::spawn(async move {
                     let mut stream = RedisEventStream::new(
                         create_connection(
                             &std::env::var("REDIS_URL")
@@ -40,31 +39,33 @@ impl EventModule for RedisToPostgres {
                             "redis_to_postgres",
                             |values: Vec<serde_json::Value>| {
                                 let pg_pool = pg_pool.clone();
-                                let sql_insert = sql_insert.clone();
+                                let sql_insert = event.sql_insert.clone();
                                 let event_id = event.id.clone();
                                 async move {
                                     let time = tokio::time::Instant::now();
-                                    match sqlx::query(&sql_insert)
-                                        .bind(serde_json::to_value(values).unwrap())
-                                        .execute(&pg_pool)
-                                        .await
-                                    {
-                                        Ok(_) => {
-                                            let duration = time.elapsed();
-                                            if duration > Duration::from_millis(25) {
-                                                log::warn!(
-                                                    "Insertion of {event_id} took {duration:?}"
+                                    for sql_insert in sql_insert.iter() {
+                                        match sqlx::query(sql_insert)
+                                            .bind(serde_json::to_value(values.clone()).unwrap())
+                                            .execute(&pg_pool)
+                                            .await
+                                        {
+                                            Ok(_) => {
+                                                let duration = time.elapsed();
+                                                if duration > Duration::from_millis(25) {
+                                                    log::warn!(
+                                                        "Insertion of {event_id} took {duration:?}"
+                                                    );
+                                                }
+                                            },
+                                            Err(err) => {
+                                                log::error!(
+                                                    "Error inserting {event_id} event into database: {err:?}",
                                                 );
+                                                return Err(anyhow::anyhow!("Failed to insert event"))
                                             }
-                                            Ok(())
-                                        },
-                                        Err(err) => {
-                                            log::error!(
-                                                "Error inserting {event_id} event into database: {err:?}",
-                                            );
-                                            Err(anyhow::anyhow!("Failed to insert event"))
                                         }
                                     }
+                                    Ok(())
                                 }
                             },
                             || cancellation_token_cloned.is_cancelled(),
@@ -77,7 +78,6 @@ impl EventModule for RedisToPostgres {
                         tokio::time::sleep(Duration::from_secs(10)).await;
                     }
                 }));
-            }
         }
         let task = tokio::spawn(futures::future::join_all(tasks));
         tokio::signal::ctrl_c()

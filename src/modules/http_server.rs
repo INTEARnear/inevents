@@ -132,7 +132,7 @@ impl EventModule for HttpServer {
                     let pg_pool = pg_pool.clone();
                     log::info!("Registering endpoint /v3/{}/{}", event.id, endpoint.route);
                     api = api.service(
-                        web::resource(&format!("{}/{}", event.id, endpoint.route)).route(
+                        web::resource(format!("{}/{}", event.id, endpoint.route)).route(
                             web::get().to(move |query: web::Query<HashMap<String, String>>| {
                                 let pg_pool = pg_pool.clone();
                                 let endpoint = Rc::clone(&endpoint);
