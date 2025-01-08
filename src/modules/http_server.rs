@@ -148,21 +148,26 @@ impl EventModule for HttpServer {
                                             .fetch_all(&pg_pool)
                                             .await
                                             {
-                                                Ok(records) => HttpResponseBuilder::new(
-                                                    StatusCode::OK,
-                                                )
-                                                .json(serde_json::json!(records
-                                                    .into_iter()
-                                                    .map(|record| record.0)
-                                                    .collect::<Vec<_>>())),
+                                                Ok(records) => {
+                                                    if let [only_one] = &records[..] {
+                                                        HttpResponseBuilder::new(StatusCode::OK)
+                                                            .json(&only_one.0)
+                                                    } else {
+                                                        HttpResponseBuilder::new(StatusCode::INTERNAL_SERVER_ERROR)
+                                                            .json(serde_json::json!({
+                                                                "error": "Database returned more than one record. If you wanted to return an array, use SQL built-in functions to create a JSON array and return it instead.",
+                                                                "records": records
+                                                            }))
+                                                    }
+                                                }
                                                 Err(err) => {
                                                     log::error!("Error querying database: {err:?}");
                                                     HttpResponseBuilder::new(
-                                                    StatusCode::INTERNAL_SERVER_ERROR,
-                                                )
-                                                .json(
-                                                    serde_json::json!({"error": format!("{err}")}),
-                                                )
+                                                        StatusCode::INTERNAL_SERVER_ERROR,
+                                                    )
+                                                    .json(
+                                                        serde_json::json!({"error": format!("{err}")}),
+                                                    )
                                                 }
                                             }
                                         }
