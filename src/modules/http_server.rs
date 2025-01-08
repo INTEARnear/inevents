@@ -141,7 +141,7 @@ impl EventModule for HttpServer {
                                     let sql_query = &endpoint.query;
                                     match sql_query {
                                         Query::Sql(sql_query) => {
-                                            match sqlx::query_as::<_, (serde_json::Value,)>(
+                                            match sqlx::query_as::<_, (Option<serde_json::Value>,)>(
                                                 sql_query,
                                             )
                                             .bind(serde_json::to_value(&query).unwrap())
@@ -150,8 +150,13 @@ impl EventModule for HttpServer {
                                             {
                                                 Ok(records) => {
                                                     if let [only_one] = &records[..] {
-                                                        HttpResponseBuilder::new(StatusCode::OK)
-                                                            .json(&only_one.0)
+                                                        if let Some(value) = &only_one.0 {
+                                                            HttpResponseBuilder::new(StatusCode::OK)
+                                                                .json(value)
+                                                        } else {
+                                                            HttpResponseBuilder::new(StatusCode::OK)
+                                                                .json(serde_json::json!(null))
+                                                        }
                                                     } else {
                                                         HttpResponseBuilder::new(StatusCode::INTERNAL_SERVER_ERROR)
                                                             .json(serde_json::json!({
