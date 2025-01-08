@@ -157,6 +157,9 @@ impl EventModule for HttpServer {
                                                             HttpResponseBuilder::new(StatusCode::OK)
                                                                 .json(serde_json::json!(null))
                                                         }
+                                                    } else if records.is_empty() {
+                                                        HttpResponseBuilder::new(StatusCode::OK)
+                                                            .json(serde_json::json!(null))
                                                     } else {
                                                         HttpResponseBuilder::new(StatusCode::INTERNAL_SERVER_ERROR)
                                                             .json(serde_json::json!({
