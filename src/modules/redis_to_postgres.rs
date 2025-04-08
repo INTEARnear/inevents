@@ -36,7 +36,11 @@ impl EventModule for RedisToPostgres {
                     );
                     while let Err(err) = stream
                         .start_reading_event_vecs(
-                            "redis_to_postgres",
+                            format!("redis_to_postgres{}", if let Ok(reader_id) = std::env::var("EVENT_READER_ID") {
+                                format!("-{reader_id}")
+                            } else {
+                                "".to_string()
+                            }),
                             |values: Vec<serde_json::Value>| {
                                 let pg_pool = pg_pool.clone();
                                 let sql_insert = event.sql_insert.clone();

@@ -371,7 +371,14 @@ fn launch_event_stream(
         );
         stream
             .start_reading_event_vecs(
-                "websocket",
+                format!(
+                    "websocket{}",
+                    if let Ok(reader_id) = std::env::var("EVENT_READER_ID") {
+                        format!("-{reader_id}")
+                    } else {
+                        "".to_string()
+                    }
+                ),
                 |events: Vec<serde_json::Value>| {
                     server.do_send(UntypedEvents(
                         event_id.clone(),
