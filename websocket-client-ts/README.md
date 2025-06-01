@@ -5,13 +5,13 @@ Event streaming client for Intear events API. This client allows you to subscrib
 ## Installation
 
 ```bash
-npm install inevents-websocket-client
+npm install @intear/inevents-websocket-client
 ```
 
 ## Usage
 
 ```typescript
-import { EventStreamClient } from 'inevents-websocket-client';
+import { EventStreamClient } from '@intear/inevents-websocket-client';
 
 // Create a client
 const client = EventStreamClient.default();
@@ -66,3 +66,4 @@ await client.streamEvents<MyEvent>(
 ## License
 
 MIT 
+
