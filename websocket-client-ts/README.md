@@ -19,6 +19,7 @@ const client = EventStreamClient.default();
 // Start streaming events
 await client.streamEvents<YourEventType>(
     'event_name',
+    null, /* or { And: [ { ... filters ... } ] } */
     async (event) => {
         // Handle each event
         console.log('Received event:', event);
